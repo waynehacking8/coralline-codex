@@ -458,7 +458,12 @@ assert_file "$codex_home/coralline-codex/VERSION" 'fresh install runtime'
 assert_file "$codex_home/coralline-codex/assets/hero.svg" 'fresh install README visual'
 assert_file "$codex_home/coralline-codex/lib/usage.py" 'fresh install usage watcher'
 assert_file "$codex_home/coralline-codex/lib/shell_integration.py" 'fresh install shell integration helper'
-[ -L "$bin_dir/coralline-codex" ] || fail 'fresh install command symlink'
+if ((WINDOWS_SHELL)); then
+  assert_file "$bin_dir/coralline-codex" 'fresh install Git Bash command shim'
+  assert_contains "$(< "$bin_dir/coralline-codex")" 'coralline-codex managed Git Bash shim' 'Git Bash command shim is identifiable'
+else
+  [ -L "$bin_dir/coralline-codex" ] || fail 'fresh install command symlink'
+fi
 assert_contains "$(< "$test_home/.bashrc")" '# >>> coralline-codex managed shell integration >>>' 'installer enables requested shell hook'
 generated_count=$(find "$codex_home/themes" -name 'coralline-*.tmTheme' -type f | wc -l)
 ((generated_count == 9)) || fail "expected 9 generated themes, got $generated_count"

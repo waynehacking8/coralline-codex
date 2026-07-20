@@ -43,6 +43,33 @@ THEME_DIR=$CODEX_DIR/themes
 BACKUP_ROOT=$CODEX_DIR/coralline-codex-backups
 BIN=$BIN_DIR/coralline-codex
 EXPECTED_BIN=$(canonical_path "$INSTALL_DIR/bin/coralline-codex")
+WINDOWS_SHELL=0
+case $(uname -s) in MINGW* | MSYS* | CYGWIN*) WINDOWS_SHELL=1 ;; esac
+MANAGED_SHIM_MARKER='# coralline-codex managed Git Bash shim'
+
+bin_is_managed() {
+  if [ -L "$BIN" ]; then
+    [ "$(canonical_path "$BIN")" = "$EXPECTED_BIN" ]
+  elif ((WINDOWS_SHELL)) && [ -f "$BIN" ]; then
+    grep -Fqx "$MANAGED_SHIM_MARKER" "$BIN"
+  else
+    return 1
+  fi
+}
+
+install_command() {
+  if ((WINDOWS_SHELL)); then
+    {
+      printf '#!/usr/bin/env bash\n%s\nexec ' "$MANAGED_SHIM_MARKER"
+      printf '%q ' "$INSTALL_DIR/bin/coralline-codex"
+      printf '"$@"\n'
+    } > "$BIN"
+    chmod 755 "$BIN"
+  else
+    ln -sfn -- "$INSTALL_DIR/bin/coralline-codex" "$BIN"
+  fi
+}
+
 previous_version=
 [ -f "$INSTALL_DIR/VERSION" ] && IFS= read -r previous_version < "$INSTALL_DIR/VERSION"
 stamp=$(date +%Y%m%d-%H%M%S)
@@ -67,7 +94,7 @@ if [ "$MODE" = uninstall ]; then
     theme=$THEME_DIR/coralline-$theme_name.tmTheme
     [ -e "$theme" ] && mv -- "$theme" "$BACKUP_DIR/themes/"
   done < "$INSTALL_DIR/themes/palettes.tsv"
-  if [ -L "$BIN" ] && [ "$(canonical_path "$BIN")" = "$EXPECTED_BIN" ]; then unlink -- "$BIN"; fi
+  if bin_is_managed; then rm -f -- "$BIN"; fi
   mv -- "$INSTALL_DIR" "$BACKUP_DIR/install"
   printf 'Uninstalled Coralline Codex. Recoverable backup: %s\n' "$BACKUP_DIR"
   printf 'Codex config.toml was not changed.\n'
@@ -78,7 +105,7 @@ for dependency in bash python3 codex; do
   command -v "$dependency" >/dev/null 2>&1 || { printf 'install: required command not found: %s\n' "$dependency" >&2; exit 1; }
 done
 mkdir -p "$CODEX_DIR" "$BIN_DIR" "$THEME_DIR"
-if [ -e "$BIN" ] && { [ ! -L "$BIN" ] || [ "$(canonical_path "$BIN")" != "$EXPECTED_BIN" ]; }; then
+if { [ -e "$BIN" ] || [ -L "$BIN" ]; } && ! bin_is_managed; then
   printf 'install: refusing to overwrite unrelated path: %s\n' "$BIN" >&2
   exit 1
 fi
@@ -140,7 +167,7 @@ elif grep -Fxq "CC_SEGMENTS='limits tokens dir git project node python model pro
   python3 "$INSTALL_DIR/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUP_ROOT" \
     'CC_SEGMENTS=limits burn tokens dir git project node python model profile elapsed clock' >/dev/null
 fi
-ln -sfn -- "$INSTALL_DIR/bin/coralline-codex" "$BIN"
+install_command
 if [ "$SHELL_HOOK" = none ]; then
   python3 "$INSTALL_DIR/lib/shell_integration.py" uninstall \
     --codex-home "$CODEX_DIR" --backup-dir "$BACKUP_ROOT/shell"
