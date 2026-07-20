@@ -24,6 +24,10 @@ jobs:
         env:
           CORALLINE_TEST_USE_FAKE_CODEX: '1'
         run: ./test/run.sh
+      - name: Verify generated themes and README visuals
+        run: |
+          python3 tools/generate_themes.py --palettes themes/palettes.tsv --output /tmp/coralline-generated-themes
+          python3 tools/render_assets.py --check
       - name: Parse PowerShell entrypoints
         shell: pwsh
         run: |

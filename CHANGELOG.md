@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0 - 2026-07-20
+
+- Add a guided visual setup with live previews, three layouts, three rendering
+  styles, font compatibility selection, and strict validation.
+- Add conservative quota burn-rate projections backed by private local history,
+  explicit warming/idle/reset-safe states, and adaptive 30-column rendering.
+- Add managed, reversible Bash and Zsh hooks so normal commands such as
+  `codex --yolo` can launch through Coralline automatically.
+- Add a native Windows PowerShell installer, launcher, configuration command,
+  optional managed profile hook, exact on-demand account usage, and safe
+  uninstall. Document WSL as the full Windows companion tier.
+- Harden usage caches with atomic writes, permission enforcement, freshness and
+  failure metadata, incremental rollout reads, and session rollover detection.
+- Show version transitions and release highlights after updates.
+- Add reproducible README visuals and hosted Linux, macOS, native Windows, and
+  Windows Git Bash CI coverage.
+
 ## 0.1.1 - 2026-07-20
 
 - Add plan-limit remaining percentage and reset countdown to the companion bar.

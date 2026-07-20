@@ -27,7 +27,7 @@ done
 : "${CC_THEME:=claude-coral}"
 : "${CC_STYLE:=pill}"
 : "${CC_ASCII:=auto}"
-: "${CC_SEGMENTS:=limits tokens dir git project node python model profile elapsed clock}"
+: "${CC_SEGMENTS:=limits burn tokens dir git project node python model profile elapsed clock}"
 : "${CC_NODE:=off}"
 : "${CC_PYTHON:=off}"
 : "${CC_RUNTIME_PROBE:=off}"

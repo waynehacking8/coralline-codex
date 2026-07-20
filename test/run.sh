@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+CURRENT_VERSION=$(< "$ROOT/VERSION")
 TEST_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/coralline-codex-tests.XXXXXX")
 trap 'rm -rf -- "$TEST_ROOT"' EXIT
 passes=0
@@ -51,7 +52,9 @@ fi
 bash -n "$ROOT/bin/coralline-codex" "$ROOT/lib/render.sh" "$ROOT/configure.sh" \
   "$ROOT/install.sh" "$ROOT/test/verify-install.sh" "$0"
 python3 -c 'import pathlib,sys; [compile(pathlib.Path(p).read_text(), p, "exec") for p in sys.argv[1:]]' \
-  "$ROOT/lib/config.py" "$ROOT/lib/shell_integration.py" "$ROOT/lib/usage.py" "$ROOT/tools/generate_themes.py"
+  "$ROOT/lib/config.py" "$ROOT/lib/shell_integration.py" "$ROOT/lib/usage.py" \
+  "$ROOT/tools/generate_themes.py" "$ROOT/tools/render_assets.py"
+python3 "$ROOT/tools/render_assets.py" --check >/dev/null
 if command -v shellcheck >/dev/null 2>&1; then
   shellcheck "$ROOT/bin/coralline-codex" "$ROOT/lib/render.sh" "$ROOT/configure.sh" \
     "$ROOT/install.sh" "$ROOT/test/verify-install.sh"
@@ -186,7 +189,8 @@ print(initial["CORALLINE_SESSION_TOTAL"], partial is None, partial_offset == off
 PY
 )
 [ "$incremental" = '123456 True True 204000 True' ] || fail 'incremental rollout tailing mishandled a partial JSONL record'
-pid_rollout=$(python3 - "$ROOT/lib/usage.py" "$rollout" <<'PY'
+if ((WINDOWS_SHELL == 0)); then
+  pid_rollout=$(python3 - "$ROOT/lib/usage.py" "$rollout" <<'PY'
 import importlib.util
 import os
 from pathlib import Path
@@ -208,8 +212,9 @@ finally:
     holder.terminate()
     holder.wait()
 PY
-)
-[ "$pid_rollout" = "$rollout" ] || fail 'rollout discovery did not traverse the Codex launcher process tree'
+  )
+  [ "$pid_rollout" = "$rollout" ] || fail 'rollout discovery did not traverse the Codex launcher process tree'
+fi
 state="$usage_dir/state.env"
 printf 'CORALLINE_RATE_CACHE=%q\nCORALLINE_SESSION_CACHE=%q\n' "$rate_cache" "$session_cache" > "$state"
 usage_render=$(CC_ASCII=on CC_SEGMENTS='limits tokens' CORALLINE_CODEX_CONFIG=/dev/null \
@@ -429,6 +434,7 @@ codex_config_hash=$(hash_file "$codex_home/config.toml")
 HOME="$test_home" CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" \
   "$ROOT/install.sh" --shell-hook bash >/dev/null
 assert_file "$codex_home/coralline-codex/VERSION" 'fresh install runtime'
+assert_file "$codex_home/coralline-codex/assets/hero.svg" 'fresh install README visual'
 assert_file "$codex_home/coralline-codex/lib/usage.py" 'fresh install usage watcher'
 assert_file "$codex_home/coralline-codex/lib/shell_integration.py" 'fresh install shell integration helper'
 [ -L "$bin_dir/coralline-codex" ] || fail 'fresh install command symlink'
@@ -448,10 +454,10 @@ backup_install=$(find "$codex_home/coralline-codex-backups" -path '*/install/VER
 assert_file "$backup_install" 'upgrade runtime backup'
 assert_contains "$(< "$backup_install")" 'local marker' 'upgrade retained exact old runtime'
 assert_not_contains "$(< "$codex_home/coralline-codex/VERSION")" 'local marker' 'upgrade installed new runtime'
-assert_contains "$upgrade_output" 'Updated 0.1.0 -> 0.1.1' 'upgrade reports the version transition'
+assert_contains "$upgrade_output" "Updated 0.1.0 -> $CURRENT_VERSION" 'upgrade reports the version transition'
 assert_contains "$upgrade_output" 'New in this release:' 'upgrade prints release highlights'
 assert_contains "$(< "$codex_home/coralline-codex.conf")" \
-  'CC_SEGMENTS='\''limits tokens dir git project node python model profile elapsed clock'\''' \
+  'CC_SEGMENTS='\''limits burn tokens dir git project node python model profile elapsed clock'\''' \
   'upgrade migrated the previous default segment order'
 [ "$codex_config_hash" = "$(hash_file "$codex_home/config.toml")" ] || fail 'upgrade changed config.toml'
 pass 'upgrade replaces owned runtime and preserves Codex configuration'

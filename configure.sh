@@ -69,7 +69,7 @@ load_current() {
   CC_ASCII=auto
   CC_NODE=off
   CC_PYTHON=off
-  CC_SEGMENTS='limits tokens dir git project node python model profile elapsed clock'
+  CC_SEGMENTS='limits burn tokens dir git project node python model profile elapsed clock'
   CC_USAGE_REFRESH=60
   CC_USAGE_STALE_AFTER=180
   # User-selected companion configuration.

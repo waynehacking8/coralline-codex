@@ -1,106 +1,145 @@
 # Coralline Codex
 
-Coralline Codex is a Coralline-inspired status experience for the OpenAI Codex
-CLI. It combines Codex's documented native footer with an isolated tmux
-companion that keeps the Powerlevel10k-style rendering, plan-limit tracking,
-session tokens, themes, Git detail, elapsed time, clock, and optional
-Node/Python segments.
+[![CI](https://github.com/waynehacking8/coralline-codex/actions/workflows/ci.yml/badge.svg)](https://github.com/waynehacking8/coralline-codex/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/waynehacking8/coralline-codex)](https://github.com/waynehacking8/coralline-codex/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+![Coralline Codex showing weekly usage, burn projection, and session tokens](assets/hero.svg)
+
+Coralline Codex is a polished status experience for the OpenAI Codex CLI. It
+combines Codex's native footer with an isolated terminal companion so the
+information people check most—plan limits, reset time, projected exhaustion,
+and active-session tokens—stays visible while they work.
 
 This is an independent Codex port of
 [Nanako0129/coralline](https://github.com/Nanako0129/coralline), not the
-upstream Claude Code project. MIT attribution and port details are in
+upstream Claude Code project. Attribution and port details are in
 [NOTICE.md](NOTICE.md).
 
-[繁體中文安裝說明](README.zh-TW.md) · [Integration details](docs/INTEGRATION.md)
+[繁體中文](README.zh-TW.md) · [Integration details](docs/INTEGRATION.md) ·
+[Quality gates](docs/QUALITY-GATES.md)
 
-```text
- ~/work/coralline-codex   ⬢ coralline-codex    main !2 ?1 ↑1   model gpt-5.6   profile default   ⧖ 12m08s   ◷ 19:42 
-```
+## What it adds
 
-## Why the integration is hybrid
+- Exact plan remaining percentage and local reset time from Codex's authenticated
+  app-server.
+- Live session input, output, and total token counts from the active local rollout.
+- A conservative burn projection with `warming`, `idle`, `reset-safe`, and
+  time-to-exhaustion states. It needs at least five minutes of history before it
+  makes a projection.
+- A responsive Powerlevel10k-style companion with directory, detailed Git state,
+  model/profile, elapsed time, clock, and optional Node/Python environments.
+- Nine generated native Codex themes, three companion styles, an ASCII fallback,
+  and a guided visual setup.
+- Optional managed shell integration, so ordinary commands such as
+  `codex --yolo` launch through Coralline automatically.
 
-Codex CLI 0.144.6 has a native configurable status line (`/statusline` and
-`tui.status_line`). It provides live model/reasoning, context, usage limits,
-tokens, Git branch, and session state. Codex does not expose Claude Code's
-external `statusLine`/`subagentStatusLine` command-renderer API, and its native
-footer does not accept arbitrary Node or Python segments.
+![All nine Coralline Codex themes](assets/themes.svg)
 
-Coralline Codex therefore uses each interface only for what it reliably knows:
+## Platform support
 
-| Surface | Reliable fields |
-|---|---|
-| Codex native footer | live model + effort, context remaining, 5-hour/weekly limits, session tokens |
-| isolated tmux companion | working directory, repository, detailed Git state, plan-limit remaining/reset, session input/output/total tokens, optional Node/Python, launch model/profile, elapsed time, clock |
+| Platform | Support tier | Experience |
+|---|---|---|
+| Linux, Bash 4+ | Full | Native Codex footer + live isolated tmux companion |
+| macOS, Homebrew Bash 4+ | Full | Native Codex footer + live isolated tmux companion |
+| Windows 11 with WSL2 | Full | Same Linux companion experience inside WSL |
+| Native Windows PowerShell | Native | Themed Codex footer, limits/tokens, exact `usage`, managed PowerShell hook |
+| Windows Git Bash/MSYS2 | Compatible | Bash lifecycle and fallback tested; full companion requires a working tmux |
 
-The companion starts a private tmux server and does not read or change your
-normal tmux configuration. A separate background watcher asks Codex's official
-app-server for account limits and watches the active local rollout for session
-tokens. It writes mode-0600 caches; the renderer only reads those caches and
-makes zero network requests. If tmux is unavailable or the process is not
-interactive, the wrapper falls back to the themed native Codex footer.
-
-## Requirements
-
-- Linux or macOS with Bash 4+
-- Python 3.8+ (standard library only)
-- Git and the Codex CLI
-- tmux for the live Powerlevel10k companion bar
-- a Nerd Font for icons, or the built-in ASCII fallback
-
-`jq` is not required.
+Native Windows does not show the extra Powerlevel10k companion bar because Codex
+does not expose an external footer renderer there. It still gets the supported
+native Codex fields and on-demand usage tracking. Use WSL2 for feature parity
+with Linux and macOS.
 
 ## Install
 
-Clone and inspect the repository, then run the local installer:
+The supported installation path is a local, reviewable checkout. The project
+does not ask you to pipe a remote script into a shell.
+
+### Linux
+
+Install Bash 4+, Python 3.8+, Git, Codex, and tmux with your package manager,
+then:
 
 ```bash
 git clone https://github.com/waynehacking8/coralline-codex.git
 cd coralline-codex
-./install.sh
+./install.sh --shell-hook auto
 ~/.local/bin/coralline-codex verify
 ```
 
-Add `~/.local/bin` to `PATH` if it is not already present. Custom locations are
-supported safely, including spaces:
+Open a new shell. Normal `codex` commands now use Coralline. If
+`~/.local/bin` is not on `PATH`, add it to your shell configuration for direct
+`coralline-codex` commands.
+
+### macOS
+
+macOS ships an older Bash, so install current dependencies first:
 
 ```bash
-CODEX_HOME="$HOME/Library/Application Support/codex" \
-CORALLINE_BIN_DIR="$HOME/bin with spaces" \
-./install.sh
+brew install bash python tmux git
+git clone https://github.com/waynehacking8/coralline-codex.git
+cd coralline-codex
+./install.sh --shell-hook zsh
+~/.local/bin/coralline-codex verify
 ```
 
-The documented primary method is a local, reviewable checkout. There is no
-`curl | bash` installation path.
+The launcher uses the Homebrew Bash found on `PATH`. The managed hook is added
+to `~/.zshrc`; open a new terminal or source that file once.
+
+### Windows 11 + WSL2
+
+Clone and run the Linux instructions inside WSL. Install `tmux`, Python 3, Git,
+and Bash in that distribution. This is the full Windows experience.
+
+### Native Windows PowerShell
+
+Install Git, Python 3.8+, and Codex, then run from PowerShell:
+
+```powershell
+git clone https://github.com/waynehacking8/coralline-codex.git
+Set-Location coralline-codex
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -ShellHook
+. $PROFILE.CurrentUserAllHosts
+codex --yolo
+coralline-codex usage
+```
+
+The optional hook adds managed `codex` and `coralline-codex` functions to the
+current-user PowerShell profile. The installer also creates
+`$HOME\.local\bin\coralline-codex.cmd` without silently changing `PATH`.
+
+Custom locations, including paths with spaces, are supported on every tier.
 
 ## Use
 
-Launch Codex through the wrapper:
-
 ```bash
-coralline-codex
-coralline-codex --model gpt-5.6 --profile work
-coralline-codex --no-companion
+codex --yolo                         # when the optional shell hook is installed
+coralline-codex                     # direct wrapper launch
+coralline-codex --model gpt-5.6
+coralline-codex --no-companion      # native footer only
+coralline-codex usage               # refresh and print exact account usage
+coralline-codex preview             # preview all themes (Bash companion tier)
 ```
 
-All unrecognized arguments are passed to Codex without string evaluation. For
-non-interactive subcommands such as `exec`, the wrapper uses the native settings
-and skips tmux automatically.
+Arguments are passed as an array without string evaluation. Non-interactive
+Codex subcommands such as `exec` skip tmux automatically. Coralline does not
+change the meaning or security implications of `--yolo`; it simply forwards the
+flag.
 
-Preview every theme:
+To bypass an installed hook for one command:
 
 ```bash
-coralline-codex preview
+CORALLINE_CODEX_DISABLE=1 codex --version
 ```
 
-Fetch the exact current plan snapshot and reset time on demand:
-
-```bash
-coralline-codex usage
+```powershell
+$env:CORALLINE_CODEX_DISABLE = '1'; codex --version; Remove-Item Env:CORALLINE_CODEX_DISABLE
 ```
 
 ## Configure
 
-Run the interactive wizard:
+The Bash companion tier has a visual wizard:
 
 ```bash
 coralline-codex configure
@@ -111,83 +150,73 @@ Or make focused changes:
 ```bash
 coralline-codex configure --theme catppuccin-mocha --style pill
 coralline-codex configure --node on --python on --runtime-probe off
-coralline-codex configure --ascii on
-coralline-codex configure --usage-refresh 60
+coralline-codex configure --segments "limits burn tokens dir git elapsed clock"
+coralline-codex configure --ascii on --usage-refresh 60
+coralline-codex configure --preview
+```
+
+Native PowerShell supports theme/native-footer configuration:
+
+```powershell
+coralline-codex configure --theme nord
 coralline-codex configure --show
 ```
 
-Node checks `.nvmrc` and `.node-version`; Python checks `VIRTUAL_ENV`, conda,
-and `.python-version`. `--runtime-probe on` additionally runs `node --version`
-or `python3 --version` when no pinned/environment value exists. Missing data
-hides only that segment.
+Runtime probes are off by default. Node checks `.nvmrc` and `.node-version`;
+Python checks virtualenv, conda, and `.python-version`. Missing data hides only
+that segment. The renderer progressively compacts limits and tokens down to a
+30-column terminal instead of dropping the critical values first.
 
-The default `limits` and `tokens` segments render compact values such as
-`7d ▰▰▰▰▱ 88% ↺6d21h` and `Σ10.4M ↑10.3M ↓70.5k`. Account limits refresh in a
-background process every 60 seconds by default (minimum 30 seconds). Rendering
-itself remains local and network-free.
+## How usage tracking works
 
-Themes: `claude-coral`, `catppuccin-mocha`, `dracula`, `gruvbox-dark`,
-`lunar-pink`, `mono`, `nord`, `reverie`, and `tokyo-night`.
+The background watcher asks the authenticated Codex app-server for account
+limits, then writes atomic mode-0600 caches under
+`$CODEX_HOME/coralline-codex-cache/`. Rendering is local and network-free.
+Transient failures preserve the last valid values and visibly mark them stale.
 
-## Update
+Projection history contains only timestamps and percentage-used samples. It is
+stored mode 0600, separated by reset window, pruned after 14 days, and never
+uploaded by Coralline. A projection is explicitly labeled as warming up until a
+sufficient baseline exists; it is an estimate, not a promise from OpenAI.
 
-From a checkout, review and fast-forward it before reinstalling:
+The native Codex footer remains authoritative for live context percentage,
+model, and reasoning effort. If `/model` changes the model during a session, the
+native footer updates while the optional companion model label remains the
+launch-time value.
+
+## Update and uninstall
+
+From a checkout:
 
 ```bash
 git pull --ff-only
-./install.sh --update
+./install.sh --update --shell-hook auto
 coralline-codex verify
 ```
 
-The installed command also supports a Git-based update (never a remote shell
-pipe):
-
-```bash
-coralline-codex update
-```
-
-Existing runtime files and generated themes are saved under
-`$CODEX_HOME/coralline-codex-backups/<timestamp>/` before replacement. The
-companion config is preserved on update.
-
-## Uninstall
+On native Windows, pull the checkout and run `./install.ps1 -Update`; an existing
+managed profile hook is preserved. Updates print the version transition and
+release highlights.
 
 ```bash
 coralline-codex uninstall
 ```
 
-The installed runtime, generated themes, and companion config are moved to a
-timestamped recoverable backup. The command symlink is removed only when it
-still points to this installation. `config.toml` is never edited.
+The installed runtime, generated themes, companion config, and managed hook are
+removed only within their recorded scope. Material files are moved to a
+timestamped recoverable backup. Coralline never edits Codex's `config.toml`.
 
-## Verify and test
+## Verify and contribute
 
 ```bash
 coralline-codex verify
 ./test/run.sh
+python3 tools/render_assets.py --check
 ```
 
-The suite covers themed rendering, width constraints, clean/dirty/detached Git,
-missing optional data, configuration merge preservation, paths with spaces,
-fresh install, upgrade, and uninstall.
-
-## Usage data and limitations
-
-- Plan windows come from Codex's documented `account/rateLimits/read`
-  app-server method. Labels are classified by the returned window duration, so
-  a weekly-only account is shown correctly even when it is the primary window.
-- Session token totals come from the active rollout's `token_count` events.
-  Missing or not-yet-emitted events hide the segment instead of showing zero.
-- The native footer remains authoritative for live context-window percentage,
-  model, and reasoning effort.
-- The companion's model/profile describe launch-time resolution. If `/model`
-  changes the model during a session, the native footer updates but the
-  companion launch segment does not.
-- Codex exposes no supported custom renderer for native footer values or
-  subagent rows. They therefore cannot receive Coralline pill backgrounds.
-- No network request occurs in `render.sh`. The separate usage watcher invokes
-  the authenticated Codex app-server at the configured refresh interval;
-  `coralline-codex update` and Codex itself can also use the network.
+CI exercises Linux, macOS, native Windows PowerShell, and Windows Git Bash. See
+[CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the complete
+[quality gates](docs/QUALITY-GATES.md) before sharing changes.
 
 ## License
 

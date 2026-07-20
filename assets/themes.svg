@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="568" viewBox="0 0 1200 568" role="img" aria-labelledby="title desc">
+<title id="title">Coralline Codex theme gallery</title>
+<desc id="desc">Generated from themes/palettes.tsv by tools/render_assets.py.</desc>
+<style>
+text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+</style>
+<rect width="1200" height="568" rx="28" fill="#101118"/>
+<text x="64" y="66" fill="#ffffff" font-size="30" font-weight="800">Nine bundled themes</text>
+<text x="64" y="96" fill="#8d96af" font-size="15">Generated from the same palette data used by the renderer.</text>
+<rect x="64" y="130" width="344" height="104" rx="14" fill="#1e1f2a" stroke="#343745"/>
+<text x="82" y="159" fill="#ffffff" font-size="14" font-weight="700">claude-coral</text>
+<rect x="82" y="178" width="57" height="34" rx="17" fill="#5faf5f"/><text x="97" y="200" fill="#ffffff" font-size="14" font-weight="700">94%</text>
+<rect x="147" y="178" width="84" height="34" rx="17" fill="#af5f5f"/><text x="162" y="200" fill="#ffffff" font-size="14" font-weight="700">Σ12.4k</text>
+<rect x="239" y="178" width="66" height="34" rx="17" fill="#51a6c7"/><text x="254" y="200" fill="#ffffff" font-size="14" font-weight="700">main</text>
+<rect x="440" y="130" width="344" height="104" rx="14" fill="#1e1e2e" stroke="#343745"/>
+<text x="458" y="159" fill="#ffffff" font-size="14" font-weight="700">catppuccin-mocha</text>
+<rect x="458" y="178" width="57" height="34" rx="17" fill="#a6e3a1"/><text x="473" y="200" fill="#1e1e2e" font-size="14" font-weight="700">94%</text>
+<rect x="523" y="178" width="84" height="34" rx="17" fill="#cba6f7"/><text x="538" y="200" fill="#1e1e2e" font-size="14" font-weight="700">Σ12.4k</text>
+<rect x="615" y="178" width="66" height="34" rx="17" fill="#89b4fa"/><text x="630" y="200" fill="#1e1e2e" font-size="14" font-weight="700">main</text>
+<rect x="816" y="130" width="344" height="104" rx="14" fill="#282a36" stroke="#343745"/>
+<text x="834" y="159" fill="#ffffff" font-size="14" font-weight="700">dracula</text>
+<rect x="834" y="178" width="57" height="34" rx="17" fill="#50fa7b"/><text x="849" y="200" fill="#282a36" font-size="14" font-weight="700">94%</text>
+<rect x="899" y="178" width="84" height="34" rx="17" fill="#bd93f9"/><text x="914" y="200" fill="#282a36" font-size="14" font-weight="700">Σ12.4k</text>
+<rect x="991" y="178" width="66" height="34" rx="17" fill="#8be9fd"/><text x="1006" y="200" fill="#282a36" font-size="14" font-weight="700">main</text>
+<rect x="64" y="264" width="344" height="104" rx="14" fill="#282828" stroke="#343745"/>
+<text x="82" y="293" fill="#ffffff" font-size="14" font-weight="700">gruvbox-dark</text>
+<rect x="82" y="312" width="57" height="34" rx="17" fill="#689d6a"/><text x="97" y="334" fill="#ebdbb2" font-size="14" font-weight="700">94%</text>
+<rect x="147" y="312" width="84" height="34" rx="17" fill="#b16286"/><text x="162" y="334" fill="#ebdbb2" font-size="14" font-weight="700">Σ12.4k</text>
+<rect x="239" y="312" width="66" height="34" rx="17" fill="#458588"/><text x="254" y="334" fill="#ebdbb2" font-size="14" font-weight="700">main</text>
+<rect x="440" y="264" width="344" height="104" rx="14" fill="#131313" stroke="#343745"/>
+<text x="458" y="293" fill="#ffffff" font-size="14" font-weight="700">lunar-pink</text>
+<rect x="458" y="312" width="57" height="34" rx="17" fill="#05a6a8"/><text x="473" y="334" fill="#131313" font-size="14" font-weight="700">94%</text>
+<rect x="523" y="312" width="84" height="34" rx="17" fill="#e621af"/><text x="538" y="334" fill="#131313" font-size="14" font-weight="700">Σ12.4k</text>
+<rect x="615" y="312" width="66" height="34" rx="17" fill="#df6cbe"/><text x="630" y="334" fill="#131313" font-size="14" font-weight="700">main</text>
+<rect x="816" y="264" width="344" height="104" rx="14" fill="#1c1c1c" stroke="#343745"/>
+<text x="834" y="293" fill="#ffffff" font-size="14" font-weight="700">mono</text>
+<rect x="834" y="312" width="57" height="34" rx="17" fill="#8a8a8a"/><text x="849" y="334" fill="#ffffff" font-size="14" font-weight="700">94%</text>
+<rect x="899" y="312" width="84" height="34" rx="17" fill="#9e9e9e"/><text x="914" y="334" fill="#ffffff" font-size="14" font-weight="700">Σ12.4k</text>
+<rect x="991" y="312" width="66" height="34" rx="17" fill="#808080"/><text x="1006" y="334" fill="#ffffff" font-size="14" font-weight="700">main</text>
+<rect x="64" y="398" width="344" height="104" rx="14" fill="#2e3440" stroke="#343745"/>
+<text x="82" y="427" fill="#ffffff" font-size="14" font-weight="700">nord</text>
+<rect x="82" y="446" width="57" height="34" rx="17" fill="#a3be8c"/><text x="97" y="468" fill="#2e3440" font-size="14" font-weight="700">94%</text>
+<rect x="147" y="446" width="84" height="34" rx="17" fill="#b48ead"/><text x="162" y="468" fill="#2e3440" font-size="14" font-weight="700">Σ12.4k</text>
+<rect x="239" y="446" width="66" height="34" rx="17" fill="#88c0d0"/><text x="254" y="468" fill="#2e3440" font-size="14" font-weight="700">main</text>
+<rect x="440" y="398" width="344" height="104" rx="14" fill="#352827" stroke="#343745"/>
+<text x="458" y="427" fill="#ffffff" font-size="14" font-weight="700">reverie</text>
+<rect x="458" y="446" width="57" height="34" rx="17" fill="#a8c89e"/><text x="473" y="468" fill="#382842" font-size="14" font-weight="700">94%</text>
+<rect x="523" y="446" width="84" height="34" rx="17" fill="#f9a8bb"/><text x="538" y="468" fill="#382842" font-size="14" font-weight="700">Σ12.4k</text>
+<rect x="615" y="446" width="66" height="34" rx="17" fill="#7298c7"/><text x="630" y="468" fill="#382842" font-size="14" font-weight="700">main</text>
+<rect x="816" y="398" width="344" height="104" rx="14" fill="#1a1b26" stroke="#343745"/>
+<text x="834" y="427" fill="#ffffff" font-size="14" font-weight="700">tokyo-night</text>
+<rect x="834" y="446" width="57" height="34" rx="17" fill="#9ece6a"/><text x="849" y="468" fill="#1a1b26" font-size="14" font-weight="700">94%</text>
+<rect x="899" y="446" width="84" height="34" rx="17" fill="#bb9af7"/><text x="914" y="468" fill="#1a1b26" font-size="14" font-weight="700">Σ12.4k</text>
+<rect x="991" y="446" width="66" height="34" rx="17" fill="#7aa2f7"/><text x="1006" y="468" fill="#1a1b26" font-size="14" font-weight="700">main</text>
+</svg>

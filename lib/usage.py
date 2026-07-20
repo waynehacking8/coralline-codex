@@ -16,13 +16,17 @@ from pathlib import Path
 import queue
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 import threading
 import time
 from typing import Any
 
-CLIENT_VERSION = "0.1.1"
+try:
+    CLIENT_VERSION = (Path(__file__).resolve().parents[1] / "VERSION").read_text(encoding="utf-8").strip()
+except OSError:
+    CLIENT_VERSION = "development"
 RPC_TIMEOUT = 15
 STOP = False
 ENV_KEY = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -413,37 +417,74 @@ def parse_timestamp(value: Any) -> float:
 
 
 def process_tree(pid: int) -> list[int]:
-    """Return a Linux process and its descendants without external commands."""
+    """Return a process and its descendants on Linux or macOS."""
     pending = [pid]
     seen: set[int] = set()
+    children_by_parent: dict[int, list[int]] = {}
+    if not Path("/proc").is_dir():
+        try:
+            result = subprocess.run(
+                ["ps", "-axo", "pid=,ppid="],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            for line in result.stdout.splitlines():
+                child_text, parent_text = line.split()
+                children_by_parent.setdefault(int(parent_text), []).append(int(child_text))
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
     while pending:
         current = pending.pop()
         if current in seen or current <= 0:
             continue
         seen.add(current)
-        children = Path(f"/proc/{current}/task/{current}/children")
-        try:
-            pending.extend(int(value) for value in children.read_text().split())
-        except (OSError, ValueError):
-            pass
+        if children_by_parent:
+            pending.extend(children_by_parent.get(current, []))
+        else:
+            children = Path(f"/proc/{current}/task/{current}/children")
+            try:
+                pending.extend(int(value) for value in children.read_text().split())
+            except (OSError, ValueError):
+                pass
     return list(seen)
+
+
+def process_open_files(pid: int) -> list[Path]:
+    fd_dir = Path(f"/proc/{pid}/fd")
+    if fd_dir.is_dir():
+        try:
+            descriptors = list(fd_dir.iterdir())
+        except OSError:
+            return []
+        paths: list[Path] = []
+        for descriptor in descriptors:
+            try:
+                paths.append(Path(os.readlink(descriptor)))
+            except OSError:
+                pass
+        return paths
+    lsof = shutil.which("lsof")
+    if not lsof:
+        return []
+    try:
+        result = subprocess.run(
+            [lsof, "-Fn", "-a", "-p", str(pid)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [Path(line[1:]) for line in result.stdout.splitlines() if line.startswith("n/")]
 
 
 def rollout_from_pid(pid: int) -> Path | None:
     candidates: set[Path] = set()
     for process_id in process_tree(pid):
-        fd_dir = Path(f"/proc/{process_id}/fd")
-        if not fd_dir.is_dir():
-            continue
-        try:
-            descriptors = list(fd_dir.iterdir())
-        except OSError:
-            continue
-        for fd in descriptors:
-            try:
-                target = Path(os.readlink(fd))
-            except OSError:
-                continue
+        for target in process_open_files(process_id):
             if target.name.startswith("rollout-") and target.suffix == ".jsonl" and target.is_file():
                 candidates.add(target)
     if not candidates:

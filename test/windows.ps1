@@ -1,5 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
+$CurrentVersion = (Get-Content -LiteralPath (Join-Path $Root 'VERSION') -Raw).Trim()
 $TestRoot = Join-Path ([IO.Path]::GetTempPath()) ('coralline-codex-windows-' + [guid]::NewGuid().ToString('N'))
 $Passes = 0
 
@@ -59,11 +60,25 @@ else:
         & chmod 755 $FakeCodex
     }
 
+    $ConflictHome = Join-Path $TestRoot 'conflict home'
+    $ConflictBin = Join-Path $TestRoot 'conflict bin'
+    New-Item -ItemType Directory -Force -Path $ConflictHome, $ConflictBin | Out-Null
+    $ConflictShim = Join-Path $ConflictBin 'coralline-codex.cmd'
+    Set-Content -LiteralPath $ConflictShim -Value '@echo unrelated' -Encoding ASCII
+    $RefusedConflict = $false
+    try {
+        & (Join-Path $Root 'install.ps1') -CodexHome $ConflictHome -BinDir $ConflictBin -CodexBin $FakeCodex 2>$null | Out-Null
+    } catch { $RefusedConflict = $true }
+    Assert-True $RefusedConflict 'Windows installer accepted an unrelated command path'
+    Assert-Contains (Get-Content -LiteralPath $ConflictShim -Raw) '@echo unrelated' 'Windows installer changed an unrelated command path'
+    Pass 'native Windows installer refuses unrelated command paths'
+
     & (Join-Path $Root 'install.ps1') -CodexHome $CodexHome -BinDir $BinDir -CodexBin $FakeCodex -ShellHook -ProfilePath $ProfilePath | Out-Null
     $Wrapper = Join-Path $CodexHome 'coralline-codex\bin\coralline-codex.ps1'
     $CommandShim = Join-Path $BinDir 'coralline-codex.cmd'
     Assert-True (Test-Path -LiteralPath $Wrapper) 'PowerShell wrapper was installed'
     Assert-True (Test-Path -LiteralPath $CommandShim) 'Windows command shim was installed'
+    Assert-True (Test-Path -LiteralPath (Join-Path $CodexHome 'coralline-codex\assets\hero.svg')) 'README visual was not installed'
     Assert-True (Test-Path -LiteralPath (Join-Path $CodexHome 'coralline-codex\lib\usage.py')) 'usage helper was installed'
     Assert-True ((Get-ChildItem -LiteralPath (Join-Path $CodexHome 'themes') -Filter 'coralline-*.tmTheme').Count -eq 9) 'nine native themes were installed'
     Pass 'native Windows installer creates the complete runtime'
@@ -74,6 +89,8 @@ else:
     . $ProfilePath
     $HookOutput = (codex --version | Out-String)
     Assert-Contains $HookOutput 'codex-cli windows-test' 'PowerShell codex function launches the wrapper'
+    $CompanionCommand = Get-Command coralline-codex -CommandType Function -ErrorAction Stop
+    Assert-True ($CompanionCommand.Name -eq 'coralline-codex') 'PowerShell companion function was not installed'
     Pass 'PowerShell shell integration is functional'
 
     $RunOutput = (& $Wrapper --yolo | Out-String)
@@ -94,7 +111,7 @@ else:
     Set-Content -LiteralPath (Join-Path $CodexHome 'coralline-codex\VERSION') -Value '0.1.0' -Encoding ASCII
     $UpdateOutput = (& (Join-Path $Root 'install.ps1') -CodexHome $CodexHome -BinDir $BinDir -CodexBin $FakeCodex -Update | Out-String)
     Assert-Contains (Get-Content -LiteralPath $ProfilePath -Raw) 'coralline-codex managed PowerShell integration' 'update removed shell hook'
-    Assert-Contains $UpdateOutput 'Updated 0.1.0 -> 0.1.1' 'Windows update did not report the version transition'
+    Assert-Contains $UpdateOutput "Updated 0.1.0 -> $CurrentVersion" 'Windows update did not report the version transition'
     Assert-True ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $CodexHome 'config.toml')).Hash -eq $ConfigHash) 'update changed config.toml'
     Pass 'Windows update preserves shell integration and Codex configuration'
 

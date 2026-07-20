@@ -1,0 +1,6 @@
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+bin/coralline-codex text eol=lf
+themes/palettes.tsv text eol=lf
+*.svg text eol=lf

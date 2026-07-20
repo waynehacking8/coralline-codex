@@ -56,6 +56,19 @@ function Remove-ShellIntegration {
     Remove-Item -LiteralPath $ShellState -Force
 }
 
+function Get-CorallineThemeNames([string]$PalettePath) {
+    $names = @()
+    Get-Content -LiteralPath $PalettePath | ForEach-Object {
+        if ($_ -and -not $_.StartsWith('#')) { $names += ($_ -split "`t")[0] }
+    }
+    return $names
+}
+
+function Test-ManagedShim([string]$Path, [string]$ExpectedWrapper) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    return (Get-Content -LiteralPath $Path -Raw).Contains($ExpectedWrapper)
+}
+
 if ($Uninstall) {
     if (-not (Test-Path -LiteralPath $InstallDir)) {
         Write-Output "Coralline Codex is not installed in $CodexHome"
@@ -66,11 +79,14 @@ if ($Uninstall) {
     if (Test-Path -LiteralPath $Config) { Move-Item -LiteralPath $Config -Destination (Join-Path $BackupDir (Split-Path -Leaf $Config)) }
     if (Test-Path -LiteralPath $ThemeDir) {
         New-Item -ItemType Directory -Force -Path (Join-Path $BackupDir 'themes') | Out-Null
-        Get-ChildItem -LiteralPath $ThemeDir -Filter 'coralline-*.tmTheme' | ForEach-Object {
-            Move-Item -LiteralPath $_.FullName -Destination (Join-Path $BackupDir 'themes')
+        Get-CorallineThemeNames (Join-Path $InstallDir 'themes\palettes.tsv') | ForEach-Object {
+            $theme = Join-Path $ThemeDir "coralline-$_.tmTheme"
+            if (Test-Path -LiteralPath $theme) {
+                Move-Item -LiteralPath $theme -Destination (Join-Path $BackupDir 'themes')
+            }
         }
     }
-    if (Test-Path -LiteralPath $CommandShim) { Remove-Item -LiteralPath $CommandShim -Force }
+    if (Test-ManagedShim $CommandShim $Wrapper) { Remove-Item -LiteralPath $CommandShim -Force }
     Move-Item -LiteralPath $InstallDir -Destination (Join-Path $BackupDir 'install')
     Write-Output "Uninstalled Coralline Codex. Recoverable backup: $BackupDir"
     Write-Output 'Codex config.toml was not changed.'
@@ -88,13 +104,23 @@ if (-not $python) { $python = Get-Command python3 -CommandType Application -Erro
 if (-not $python) { throw 'Python 3.8+ is required.' }
 
 New-Item -ItemType Directory -Force -Path $CodexHome, $BinDir, $ThemeDir | Out-Null
+$ExistingInstall = Test-Path -LiteralPath $InstallDir -PathType Container
+if (-not $ExistingInstall -and (Test-Path -LiteralPath $CommandShim)) {
+    throw "Refusing to overwrite unrelated command path: $CommandShim"
+}
+if (-not $ExistingInstall) {
+    Get-CorallineThemeNames (Join-Path $Source 'themes\palettes.tsv') | ForEach-Object {
+        $theme = Join-Path $ThemeDir "coralline-$_.tmTheme"
+        if (Test-Path -LiteralPath $theme) { throw "Refusing to overwrite unrelated theme: $theme" }
+    }
+}
 $Stage = Join-Path $CodexHome ('.coralline-codex-stage.' + [guid]::NewGuid().ToString('N'))
 try {
     New-Item -ItemType Directory -Force -Path $Stage | Out-Null
-    foreach ($file in @('VERSION', 'CHANGELOG.md', 'LICENSE', 'NOTICE.md', 'README.md', 'README.zh-TW.md', 'install.sh', 'install.ps1', 'configure.sh', 'configure.ps1')) {
+    foreach ($file in @('VERSION', 'CHANGELOG.md', 'CONTRIBUTING.md', 'LICENSE', 'NOTICE.md', 'README.md', 'README.zh-TW.md', 'SECURITY.md', 'install.sh', 'install.ps1', 'configure.sh', 'configure.ps1')) {
         if (Test-Path -LiteralPath (Join-Path $Source $file)) { Copy-Item -LiteralPath (Join-Path $Source $file) -Destination $Stage }
     }
-    foreach ($directory in @('bin', 'lib', 'themes', 'tools', 'test', 'docs')) {
+    foreach ($directory in @('assets', 'bin', 'lib', 'themes', 'tools', 'test', 'docs')) {
         Copy-Item -LiteralPath (Join-Path $Source $directory) -Destination $Stage -Recurse
     }
     & $python.Source (Join-Path $Stage 'tools\generate_themes.py') --palettes (Join-Path $Stage 'themes\palettes.tsv') --output (Join-Path $Stage 'themes\generated')
@@ -139,6 +165,9 @@ if ($ShellHook) {
     $block = @"
 $StartMarker
 function global:codex {
+    & '$escapedWrapper' @args
+}
+function global:coralline-codex {
     & '$escapedWrapper' @args
 }
 $EndMarker

@@ -175,7 +175,7 @@ case $subcommand in
     while IFS=$'\t' read -r theme _; do
       [[ $theme == \#* || -z $theme ]] && continue
       printf '%-20s ' "$theme"
-      CC_THEME=$theme CC_SEGMENTS='limits tokens dir git model elapsed clock' \
+      CC_THEME=$theme CC_SEGMENTS='limits burn tokens dir git model elapsed clock' \
         CORALLINE_RATE_AVAILABLE=1 CORALLINE_LIMIT_COUNT=1 \
         CORALLINE_LIMIT1_LABEL=7d CORALLINE_LIMIT1_USED=15 CORALLINE_LIMIT1_REMAINING=85 \
         CORALLINE_LIMIT1_RESET=$((preview_now + 597600)) CORALLINE_RATE_UPDATED=$preview_now \
