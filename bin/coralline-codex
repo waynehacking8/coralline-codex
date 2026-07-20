@@ -193,7 +193,16 @@ case $subcommand in
     trap 'rm -rf -- "$temp"' EXIT
     git clone --depth 1 https://github.com/waynehacking8/coralline-codex.git "$temp/repo"
     bash "$temp/repo/install.sh" --update "$@" ;;
-  uninstall) shift; exec bash "$ROOT/install.sh" --uninstall "$@" ;;
+  uninstall)
+    shift
+    case $(uname -s) in
+      MINGW* | MSYS* | CYGWIN*)
+        uninstall_temp=$(mktemp -d "${TMPDIR:-/tmp}/coralline-uninstall.XXXXXX")
+        cp -p -- "$ROOT/install.sh" "$uninstall_temp/install.sh"
+        exec bash -c 'temp=$1; shift; trap '\''rm -rf -- "$temp"'\'' EXIT; bash "$temp/install.sh" --uninstall "$@"' \
+          _ "$uninstall_temp" "$@" ;;
+      *) exec bash "$ROOT/install.sh" --uninstall "$@" ;;
+    esac ;;
   -h | --help | help) usage ;;
   *) run_codex "$@" ;;
 esac

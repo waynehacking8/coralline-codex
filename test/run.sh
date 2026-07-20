@@ -489,7 +489,7 @@ assert_contains "$(< "$codex_home/coralline-codex.conf")" \
 pass 'upgrade replaces owned runtime and preserves Codex configuration'
 
 HOME="$test_home" CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" \
-  "$codex_home/coralline-codex/install.sh" --uninstall >/dev/null
+  "$bin_dir/coralline-codex" uninstall >/dev/null
 assert_absent "$codex_home/coralline-codex" 'uninstall runtime removal'
 assert_absent "$bin_dir/coralline-codex" 'uninstall command removal'
 assert_absent "$codex_home/coralline-codex.conf" 'uninstall config removal'
