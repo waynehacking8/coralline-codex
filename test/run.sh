@@ -83,6 +83,14 @@ while IFS=$'\t' read -r theme _; do
 done < "$ROOT/themes/palettes.tsv"
 pass 'all nine themes render'
 
+powerline=$(CC_STYLE=powerline CC_ASCII=off CC_SEGMENTS='dir clock' \
+  CORALLINE_CODEX_CONFIG=/dev/null "$ROOT/lib/render.sh" --tmux --width 240 --cwd "$TEST_ROOT")
+assert_contains "$powerline" '#[fg=#51a6c7,bg=#46506e,nobold]' \
+  'powerline joins adjacent segment colors with a right arrow'
+assert_contains "$powerline" '#[fg=#46506e,bg=#1e1f2a,nobold]#[default]' \
+  'powerline closes the final segment into the companion background'
+pass 'connected Powerline arrows render with continuous color transitions'
+
 width_output=$(CC_ASCII=on CORALLINE_CODEX_CONFIG=/dev/null \
   "$ROOT/lib/render.sh" --plain --width 30 --cwd "$TEST_ROOT/a directory with spaces/and-a-long-tail")
 width_count=$(python3 -c 'import sys; print(len(sys.stdin.read().rstrip("\n")))' <<< "$width_output")

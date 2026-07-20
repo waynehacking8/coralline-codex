@@ -1,40 +1,44 @@
 # Coralline Codex
 
-[![CI](https://github.com/waynehacking8/coralline-codex/actions/workflows/ci.yml/badge.svg)](https://github.com/waynehacking8/coralline-codex/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/waynehacking8/coralline-codex)](https://github.com/waynehacking8/coralline-codex/releases)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+> A [Powerlevel10k](https://github.com/romkatv/powerlevel10k)-inspired status
+> experience for the OpenAI Codex CLI, pairing Codex's native footer with a live
+> terminal companion for usage limits, burn projection, and session tokens.
 
-![Coralline Codex showing weekly usage, burn projection, and session tokens](assets/hero.svg)
+[繁體中文說明](./README.zh-TW.md)
 
-Coralline Codex is a polished status experience for the OpenAI Codex CLI. It
-combines Codex's native footer with an isolated terminal companion so the
-information people check most—plan limits, reset time, projected exhaustion,
-and active-session tokens—stays visible while they work.
+![Six Coralline Codex themes rendered with connected Powerline arrows](./assets/hero.svg)
+
+## What you get
+
+```text
+7d ▰▰▰▰▱ 79% ↺1d11h  ↗7d 4d12h  Σ123.4k ↑120.0k ↓3.4k  ~/dev/coralline-codex   main+!?  ◆ gpt-5.6  ⧖ 47m  ◷ 16:53 
+```
+
+| Segment | Shows |
+|---|---|
+| `limits` | exact plan remaining percentage, a five-cell gauge, local reset countdown, and stale-data warning |
+| `burn` | conservative time-to-exhaustion projection with warming, idle, reset-safe, and tracking states |
+| `tokens` | active-session input, output, and total token counts |
+| `dir` | current directory with long-path collapsing |
+| `project` | repository name; hidden outside a Git repository |
+| `git` | branch, staged `+`, modified `!`, untracked `?`, ahead `↑`, and behind `↓` state |
+| `node` / `python` | pinned or active runtime environment; opt-in and hidden when undetected |
+| `model` / `profile` | launch-time Codex model and profile when available |
+| `elapsed` | session wall-clock duration |
+| `clock` | local 24-hour time |
+
+The native Codex footer remains authoritative for live model, reasoning effort,
+context remaining, limits, and used tokens. The companion adds the fields Codex
+does not render there and progressively compacts down to a 30-column terminal.
+Gauges and projections change color with urgency.
+
+Coralline Codex includes nine native Codex themes, four companion styles, an
+ASCII fallback, a guided visual setup, and an optional managed shell hook so
+ordinary commands such as `codex --yolo` launch through Coralline automatically.
 
 This is an independent Codex port of
-[Nanako0129/coralline](https://github.com/Nanako0129/coralline), not the
-upstream Claude Code project. Attribution and port details are in
-[NOTICE.md](NOTICE.md).
-
-[繁體中文](README.zh-TW.md) · [Integration details](docs/INTEGRATION.md) ·
-[Quality gates](docs/QUALITY-GATES.md)
-
-## What it adds
-
-- Exact plan remaining percentage and local reset time from Codex's authenticated
-  app-server.
-- Live session input, output, and total token counts from the active local rollout.
-- A conservative burn projection with `warming`, `idle`, `reset-safe`, and
-  time-to-exhaustion states. It needs at least five minutes of history before it
-  makes a projection.
-- A responsive Powerlevel10k-style companion with directory, detailed Git state,
-  model/profile, elapsed time, clock, and optional Node/Python environments.
-- Nine generated native Codex themes, three companion styles, an ASCII fallback,
-  and a guided visual setup.
-- Optional managed shell integration, so ordinary commands such as
-  `codex --yolo` launch through Coralline automatically.
-
-![All nine Coralline Codex themes](assets/themes.svg)
+[Nanako0129/coralline](https://github.com/Nanako0129/coralline), not the upstream
+Claude Code project. Attribution and port details are in [NOTICE.md](./NOTICE.md).
 
 ## Platform support
 
@@ -148,7 +152,7 @@ coralline-codex configure
 Or make focused changes:
 
 ```bash
-coralline-codex configure --theme catppuccin-mocha --style pill
+coralline-codex configure --theme catppuccin-mocha --style powerline
 coralline-codex configure --node on --python on --runtime-probe off
 coralline-codex configure --segments "limits burn tokens dir git elapsed clock"
 coralline-codex configure --ascii on --usage-refresh 60

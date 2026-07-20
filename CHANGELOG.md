@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 - 2026-07-21
+
+- Add a connected Powerline-arrow style and make it the default for new installs,
+  while retaining pill, lean, classic, and ASCII rendering.
+- Rebuild the README opening and theme sampler to follow the upstream
+  Coralline layout and aesthetic with the connected arrow treatment.
+
 ## 0.2.0 - 2026-07-20
 
 - Add a guided visual setup with live previews, three layouts, three rendering

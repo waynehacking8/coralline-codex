@@ -156,7 +156,7 @@ done
 
 if [ ! -f "$CONFIG" ]; then
   python3 "$INSTALL_DIR/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUP_ROOT" \
-    CC_THEME=claude-coral CC_STYLE=pill CC_ASCII=auto CC_NODE=off CC_PYTHON=off \
+    CC_THEME=claude-coral CC_STYLE=powerline CC_ASCII=auto CC_NODE=off CC_PYTHON=off \
     CC_RUNTIME_PROBE=off 'CC_SEGMENTS=limits burn tokens dir git project node python model profile elapsed clock' \
     CC_NATIVE_STATUS=on CC_USAGE_REFRESH=60 CC_USAGE_STALE_AFTER=180 >/dev/null
 elif grep -Fxq "CC_SEGMENTS='dir project git node python model profile elapsed clock'" "$CONFIG"; then

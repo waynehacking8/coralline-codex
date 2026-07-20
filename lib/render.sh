@@ -25,7 +25,7 @@ while (($#)); do
 done
 
 : "${CC_THEME:=claude-coral}"
-: "${CC_STYLE:=pill}"
+: "${CC_STYLE:=powerline}"
 : "${CC_ASCII:=auto}"
 : "${CC_SEGMENTS:=limits burn tokens dir git project node python model profile elapsed clock}"
 : "${CC_NODE:=off}"
@@ -337,6 +337,11 @@ for i in "${!KEEP_LABELS[@]}"; do
   elif [ "$MODE" = tmux ]; then
     if [ "$ASCII" = 1 ]; then
       out+="#[fg=$color,bold][ $label ]#[default] "
+    elif [ "$CC_STYLE" = powerline ]; then
+      next_color=$C_BG
+      if ((i + 1 < ${#KEEP_LABELS[@]})); then next_color=${KEEP_COLORS[i + 1]}; fi
+      out+="#[fg=$C_FG,bg=$color,bold] $label #[fg=$color,bg=$next_color,nobold]"
+      if ((i + 1 == ${#KEEP_LABELS[@]})); then out+="#[default]"; fi
     elif [ "$CC_STYLE" = lean ]; then
       [ -n "$out" ] && out+="#[fg=$C_DIM] · "
       out+="#[fg=$color,bold]$label#[default]"
@@ -349,6 +354,12 @@ for i in "${!KEEP_LABELS[@]}"; do
     hex_to_rgb "$color"; bg="\033[48;2;${RGB_R};${RGB_G};${RGB_B}m"; fgcap="\033[38;2;${RGB_R};${RGB_G};${RGB_B}m"
     hex_to_rgb "$C_FG"; fgtext="\033[38;2;${RGB_R};${RGB_G};${RGB_B}m"
     if [ "$ASCII" = 1 ]; then out+="\033[1m${fgcap}[ $label ]\033[0m ";
+    elif [ "$CC_STYLE" = powerline ]; then
+      next_color=$C_BG
+      if ((i + 1 < ${#KEEP_LABELS[@]})); then next_color=${KEEP_COLORS[i + 1]}; fi
+      hex_to_rgb "$next_color"; next_bg="\033[48;2;${RGB_R};${RGB_G};${RGB_B}m"
+      out+="${bg}${fgtext}\033[1m $label \033[22m${fgcap}${next_bg}"
+      if ((i + 1 == ${#KEEP_LABELS[@]})); then out+="\033[0m"; fi
     elif [ "$CC_STYLE" = lean ]; then [ -n "$out" ] && out+=" \033[0m· "; out+="\033[1m${fgcap}$label\033[0m";
     elif [ "$CC_STYLE" = classic ]; then out+="${bg}${fgtext}\033[1m $label \033[0m ";
     else out+="${fgcap}${bg}${fgtext}\033[1m $label \033[0m${fgcap}\033[0m "; fi

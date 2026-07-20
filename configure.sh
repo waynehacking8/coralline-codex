@@ -14,8 +14,8 @@ usage: configure.sh [options]
   --wizard               open the guided visual setup
   --preview              preview the effective companion configuration
   --theme NAME            select one of the bundled themes
-  --style pill|lean|classic
-                          select rounded pills, a lean line, or square blocks
+  --style powerline|pill|lean|classic
+                          select connected arrows, rounded pills, a lean line, or square blocks
   --ascii auto|on|off     force or disable the ASCII fallback
   --node on|off           show Node when an environment/version is detected
   --python on|off         show Python when an environment/version is detected
@@ -65,7 +65,7 @@ render_preview() {
 
 load_current() {
   CC_THEME=claude-coral
-  CC_STYLE=pill
+  CC_STYLE=powerline
   CC_ASCII=auto
   CC_NODE=off
   CC_PYTHON=off
@@ -117,12 +117,12 @@ visual_wizard() {
   resolve_theme_choice "$choice"
 
   printf '\nStyles:\n'
-  for choice in pill lean classic; do
-    printf '%-8s ' "$choice"
+  for choice in powerline pill lean classic; do
+    printf '%-10s ' "$choice"
     render_preview "$WIZARD_THEME" "$choice" "$WIZARD_ASCII" 'limits tokens dir git' "$width"
   done
   printf 'Style [%s]: ' "$WIZARD_STYLE"; IFS= read -r choice
-  case $choice in '' ) ;; pill | lean | classic) WIZARD_STYLE=$choice ;; *) printf 'Unknown style; keeping %s.\n' "$WIZARD_STYLE" ;; esac
+  case $choice in '' ) ;; powerline | pill | lean | classic) WIZARD_STYLE=$choice ;; *) printf 'Unknown style; keeping %s.\n' "$WIZARD_STYLE" ;; esac
 
   printf 'Glyph mode: 1) automatic Nerd Font  2) ASCII [%s]: ' "$WIZARD_ASCII"; IFS= read -r choice
   case $choice in 1 | auto | '') ;; 2 | ascii) WIZARD_ASCII=on ;; *) printf 'Unknown glyph mode; keeping %s.\n' "$WIZARD_ASCII" ;; esac
@@ -198,7 +198,7 @@ if ((${#CHANGES[@]})); then
     key=${change%%=*}; value=${change#*=}
     case $key in
       CC_THEME) theme_exists "$value" || { printf 'unknown theme: %s\n' "$value" >&2; exit 2; } ;;
-      CC_STYLE) [[ $value == pill || $value == lean || $value == classic ]] || { printf 'style must be pill, lean, or classic\n' >&2; exit 2; } ;;
+      CC_STYLE) [[ $value == powerline || $value == pill || $value == lean || $value == classic ]] || { printf 'style must be powerline, pill, lean, or classic\n' >&2; exit 2; } ;;
       CC_ASCII) [[ $value == auto || $value == on || $value == off ]] || { printf 'ascii must be auto, on, or off\n' >&2; exit 2; } ;;
       CC_NODE | CC_PYTHON | CC_RUNTIME_PROBE) [[ $value == on || $value == off ]] || { printf '%s must be on or off\n' "$key" >&2; exit 2; } ;;
       CC_SEGMENTS) segments_valid "$value" || exit 2 ;;

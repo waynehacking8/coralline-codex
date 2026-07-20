@@ -9,47 +9,47 @@ text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 <text x="64" y="96" fill="#8d96af" font-size="15">Generated from the same palette data used by the renderer.</text>
 <rect x="64" y="130" width="344" height="104" rx="14" fill="#1e1f2a" stroke="#343745"/>
 <text x="82" y="159" fill="#ffffff" font-size="14" font-weight="700">claude-coral</text>
-<rect x="82" y="178" width="57" height="34" rx="17" fill="#5faf5f"/><text x="97" y="200" fill="#ffffff" font-size="14" font-weight="700">94%</text>
-<rect x="147" y="178" width="84" height="34" rx="17" fill="#af5f5f"/><text x="162" y="200" fill="#ffffff" font-size="14" font-weight="700">Σ12.4k</text>
-<rect x="239" y="178" width="66" height="34" rx="17" fill="#51a6c7"/><text x="254" y="200" fill="#ffffff" font-size="14" font-weight="700">main</text>
+<path d="M 82 178 H 136 L 153 195 L 136 212 H 82 Z" fill="#5faf5f"/><text x="97" y="201" fill="#ffffff" font-size="14" font-weight="700">94%</text>
+<path d="M 136 178 L 153 195 L 136 212 H 214 L 231 195 L 214 178 Z" fill="#af5f5f"/><text x="160" y="201" fill="#ffffff" font-size="14" font-weight="700">Σ12.4k</text>
+<path d="M 214 178 L 231 195 L 214 212 H 276 L 293 195 L 276 178 Z" fill="#51a6c7"/><text x="238" y="201" fill="#ffffff" font-size="14" font-weight="700">main</text>
 <rect x="440" y="130" width="344" height="104" rx="14" fill="#1e1e2e" stroke="#343745"/>
 <text x="458" y="159" fill="#ffffff" font-size="14" font-weight="700">catppuccin-mocha</text>
-<rect x="458" y="178" width="57" height="34" rx="17" fill="#a6e3a1"/><text x="473" y="200" fill="#1e1e2e" font-size="14" font-weight="700">94%</text>
-<rect x="523" y="178" width="84" height="34" rx="17" fill="#cba6f7"/><text x="538" y="200" fill="#1e1e2e" font-size="14" font-weight="700">Σ12.4k</text>
-<rect x="615" y="178" width="66" height="34" rx="17" fill="#89b4fa"/><text x="630" y="200" fill="#1e1e2e" font-size="14" font-weight="700">main</text>
+<path d="M 458 178 H 512 L 529 195 L 512 212 H 458 Z" fill="#a6e3a1"/><text x="473" y="201" fill="#1e1e2e" font-size="14" font-weight="700">94%</text>
+<path d="M 512 178 L 529 195 L 512 212 H 590 L 607 195 L 590 178 Z" fill="#cba6f7"/><text x="536" y="201" fill="#1e1e2e" font-size="14" font-weight="700">Σ12.4k</text>
+<path d="M 590 178 L 607 195 L 590 212 H 652 L 669 195 L 652 178 Z" fill="#89b4fa"/><text x="614" y="201" fill="#1e1e2e" font-size="14" font-weight="700">main</text>
 <rect x="816" y="130" width="344" height="104" rx="14" fill="#282a36" stroke="#343745"/>
 <text x="834" y="159" fill="#ffffff" font-size="14" font-weight="700">dracula</text>
-<rect x="834" y="178" width="57" height="34" rx="17" fill="#50fa7b"/><text x="849" y="200" fill="#282a36" font-size="14" font-weight="700">94%</text>
-<rect x="899" y="178" width="84" height="34" rx="17" fill="#bd93f9"/><text x="914" y="200" fill="#282a36" font-size="14" font-weight="700">Σ12.4k</text>
-<rect x="991" y="178" width="66" height="34" rx="17" fill="#8be9fd"/><text x="1006" y="200" fill="#282a36" font-size="14" font-weight="700">main</text>
+<path d="M 834 178 H 888 L 905 195 L 888 212 H 834 Z" fill="#50fa7b"/><text x="849" y="201" fill="#282a36" font-size="14" font-weight="700">94%</text>
+<path d="M 888 178 L 905 195 L 888 212 H 966 L 983 195 L 966 178 Z" fill="#bd93f9"/><text x="912" y="201" fill="#282a36" font-size="14" font-weight="700">Σ12.4k</text>
+<path d="M 966 178 L 983 195 L 966 212 H 1028 L 1045 195 L 1028 178 Z" fill="#8be9fd"/><text x="990" y="201" fill="#282a36" font-size="14" font-weight="700">main</text>
 <rect x="64" y="264" width="344" height="104" rx="14" fill="#282828" stroke="#343745"/>
 <text x="82" y="293" fill="#ffffff" font-size="14" font-weight="700">gruvbox-dark</text>
-<rect x="82" y="312" width="57" height="34" rx="17" fill="#689d6a"/><text x="97" y="334" fill="#ebdbb2" font-size="14" font-weight="700">94%</text>
-<rect x="147" y="312" width="84" height="34" rx="17" fill="#b16286"/><text x="162" y="334" fill="#ebdbb2" font-size="14" font-weight="700">Σ12.4k</text>
-<rect x="239" y="312" width="66" height="34" rx="17" fill="#458588"/><text x="254" y="334" fill="#ebdbb2" font-size="14" font-weight="700">main</text>
+<path d="M 82 312 H 136 L 153 329 L 136 346 H 82 Z" fill="#689d6a"/><text x="97" y="335" fill="#ebdbb2" font-size="14" font-weight="700">94%</text>
+<path d="M 136 312 L 153 329 L 136 346 H 214 L 231 329 L 214 312 Z" fill="#b16286"/><text x="160" y="335" fill="#ebdbb2" font-size="14" font-weight="700">Σ12.4k</text>
+<path d="M 214 312 L 231 329 L 214 346 H 276 L 293 329 L 276 312 Z" fill="#458588"/><text x="238" y="335" fill="#ebdbb2" font-size="14" font-weight="700">main</text>
 <rect x="440" y="264" width="344" height="104" rx="14" fill="#131313" stroke="#343745"/>
 <text x="458" y="293" fill="#ffffff" font-size="14" font-weight="700">lunar-pink</text>
-<rect x="458" y="312" width="57" height="34" rx="17" fill="#05a6a8"/><text x="473" y="334" fill="#131313" font-size="14" font-weight="700">94%</text>
-<rect x="523" y="312" width="84" height="34" rx="17" fill="#e621af"/><text x="538" y="334" fill="#131313" font-size="14" font-weight="700">Σ12.4k</text>
-<rect x="615" y="312" width="66" height="34" rx="17" fill="#df6cbe"/><text x="630" y="334" fill="#131313" font-size="14" font-weight="700">main</text>
+<path d="M 458 312 H 512 L 529 329 L 512 346 H 458 Z" fill="#05a6a8"/><text x="473" y="335" fill="#131313" font-size="14" font-weight="700">94%</text>
+<path d="M 512 312 L 529 329 L 512 346 H 590 L 607 329 L 590 312 Z" fill="#e621af"/><text x="536" y="335" fill="#131313" font-size="14" font-weight="700">Σ12.4k</text>
+<path d="M 590 312 L 607 329 L 590 346 H 652 L 669 329 L 652 312 Z" fill="#df6cbe"/><text x="614" y="335" fill="#131313" font-size="14" font-weight="700">main</text>
 <rect x="816" y="264" width="344" height="104" rx="14" fill="#1c1c1c" stroke="#343745"/>
 <text x="834" y="293" fill="#ffffff" font-size="14" font-weight="700">mono</text>
-<rect x="834" y="312" width="57" height="34" rx="17" fill="#8a8a8a"/><text x="849" y="334" fill="#ffffff" font-size="14" font-weight="700">94%</text>
-<rect x="899" y="312" width="84" height="34" rx="17" fill="#9e9e9e"/><text x="914" y="334" fill="#ffffff" font-size="14" font-weight="700">Σ12.4k</text>
-<rect x="991" y="312" width="66" height="34" rx="17" fill="#808080"/><text x="1006" y="334" fill="#ffffff" font-size="14" font-weight="700">main</text>
+<path d="M 834 312 H 888 L 905 329 L 888 346 H 834 Z" fill="#8a8a8a"/><text x="849" y="335" fill="#ffffff" font-size="14" font-weight="700">94%</text>
+<path d="M 888 312 L 905 329 L 888 346 H 966 L 983 329 L 966 312 Z" fill="#9e9e9e"/><text x="912" y="335" fill="#ffffff" font-size="14" font-weight="700">Σ12.4k</text>
+<path d="M 966 312 L 983 329 L 966 346 H 1028 L 1045 329 L 1028 312 Z" fill="#808080"/><text x="990" y="335" fill="#ffffff" font-size="14" font-weight="700">main</text>
 <rect x="64" y="398" width="344" height="104" rx="14" fill="#2e3440" stroke="#343745"/>
 <text x="82" y="427" fill="#ffffff" font-size="14" font-weight="700">nord</text>
-<rect x="82" y="446" width="57" height="34" rx="17" fill="#a3be8c"/><text x="97" y="468" fill="#2e3440" font-size="14" font-weight="700">94%</text>
-<rect x="147" y="446" width="84" height="34" rx="17" fill="#b48ead"/><text x="162" y="468" fill="#2e3440" font-size="14" font-weight="700">Σ12.4k</text>
-<rect x="239" y="446" width="66" height="34" rx="17" fill="#88c0d0"/><text x="254" y="468" fill="#2e3440" font-size="14" font-weight="700">main</text>
+<path d="M 82 446 H 136 L 153 463 L 136 480 H 82 Z" fill="#a3be8c"/><text x="97" y="469" fill="#2e3440" font-size="14" font-weight="700">94%</text>
+<path d="M 136 446 L 153 463 L 136 480 H 214 L 231 463 L 214 446 Z" fill="#b48ead"/><text x="160" y="469" fill="#2e3440" font-size="14" font-weight="700">Σ12.4k</text>
+<path d="M 214 446 L 231 463 L 214 480 H 276 L 293 463 L 276 446 Z" fill="#88c0d0"/><text x="238" y="469" fill="#2e3440" font-size="14" font-weight="700">main</text>
 <rect x="440" y="398" width="344" height="104" rx="14" fill="#352827" stroke="#343745"/>
 <text x="458" y="427" fill="#ffffff" font-size="14" font-weight="700">reverie</text>
-<rect x="458" y="446" width="57" height="34" rx="17" fill="#a8c89e"/><text x="473" y="468" fill="#382842" font-size="14" font-weight="700">94%</text>
-<rect x="523" y="446" width="84" height="34" rx="17" fill="#f9a8bb"/><text x="538" y="468" fill="#382842" font-size="14" font-weight="700">Σ12.4k</text>
-<rect x="615" y="446" width="66" height="34" rx="17" fill="#7298c7"/><text x="630" y="468" fill="#382842" font-size="14" font-weight="700">main</text>
+<path d="M 458 446 H 512 L 529 463 L 512 480 H 458 Z" fill="#a8c89e"/><text x="473" y="469" fill="#382842" font-size="14" font-weight="700">94%</text>
+<path d="M 512 446 L 529 463 L 512 480 H 590 L 607 463 L 590 446 Z" fill="#f9a8bb"/><text x="536" y="469" fill="#382842" font-size="14" font-weight="700">Σ12.4k</text>
+<path d="M 590 446 L 607 463 L 590 480 H 652 L 669 463 L 652 446 Z" fill="#7298c7"/><text x="614" y="469" fill="#382842" font-size="14" font-weight="700">main</text>
 <rect x="816" y="398" width="344" height="104" rx="14" fill="#1a1b26" stroke="#343745"/>
 <text x="834" y="427" fill="#ffffff" font-size="14" font-weight="700">tokyo-night</text>
-<rect x="834" y="446" width="57" height="34" rx="17" fill="#9ece6a"/><text x="849" y="468" fill="#1a1b26" font-size="14" font-weight="700">94%</text>
-<rect x="899" y="446" width="84" height="34" rx="17" fill="#bb9af7"/><text x="914" y="468" fill="#1a1b26" font-size="14" font-weight="700">Σ12.4k</text>
-<rect x="991" y="446" width="66" height="34" rx="17" fill="#7aa2f7"/><text x="1006" y="468" fill="#1a1b26" font-size="14" font-weight="700">main</text>
+<path d="M 834 446 H 888 L 905 463 L 888 480 H 834 Z" fill="#9ece6a"/><text x="849" y="469" fill="#1a1b26" font-size="14" font-weight="700">94%</text>
+<path d="M 888 446 L 905 463 L 888 480 H 966 L 983 463 L 966 446 Z" fill="#bb9af7"/><text x="912" y="469" fill="#1a1b26" font-size="14" font-weight="700">Σ12.4k</text>
+<path d="M 966 446 L 983 463 L 966 480 H 1028 L 1045 463 L 1028 446 Z" fill="#7aa2f7"/><text x="990" y="469" fill="#1a1b26" font-size="14" font-weight="700">main</text>
 </svg>

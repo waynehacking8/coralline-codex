@@ -7,6 +7,7 @@ import argparse
 import html
 from pathlib import Path
 import sys
+from typing import Optional
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,15 +35,35 @@ def load_palettes() -> list[dict[str, str]]:
     return palettes
 
 
-def pill(x: int, y: int, label: str, color: str, foreground: str, scale: int = 1) -> tuple[str, int]:
-    width = (len(label) * 9 + 30) * scale
-    height = 34 * scale
-    radius = height // 2
-    font_size = 14 * scale
-    baseline = y + int(22 * scale)
+def powerline_segment(
+    x: int,
+    y: int,
+    label: str,
+    color: str,
+    foreground: str,
+    first: bool = False,
+    scale: int = 1,
+    font_size: Optional[int] = None,
+    height: Optional[int] = None,
+) -> tuple[str, int]:
+    font_size = font_size or 14 * scale
+    height = height or 34 * scale
+    horizontal_padding = int(font_size * 2.15)
+    width = len(label) * int(font_size * 0.64) + horizontal_padding
+    tip = height // 2
+    baseline = y + int(height * 0.68)
+    if first:
+        path = f'M {x} {y} H {x + width} L {x + width + tip} {y + tip} L {x + width} {y + height} H {x} Z'
+        text_x = x + horizontal_padding // 2
+    else:
+        path = (
+            f'M {x} {y} L {x + tip} {y + tip} L {x} {y + height} '
+            f'H {x + width} L {x + width + tip} {y + tip} L {x + width} {y} Z'
+        )
+        text_x = x + tip + int(font_size * 0.55)
     svg = (
-        f'<rect x="{x}" y="{y}" width="{width}" height="{height}" rx="{radius}" fill="{esc(color)}"/>'
-        f'<text x="{x + 15 * scale}" y="{baseline}" fill="{esc(foreground)}" '
+        f'<path d="{path}" fill="{esc(color)}"/>'
+        f'<text x="{text_x}" y="{baseline}" fill="{esc(foreground)}" '
         f'font-size="{font_size}" font-weight="700">{esc(label)}</text>'
     )
     return svg, width
@@ -60,40 +81,62 @@ text {{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation 
 '''
 
 
-def render_hero(palette: dict[str, str]) -> str:
-    width, height = 1200, 440
+def render_hero(palettes: list[dict[str, str]]) -> str:
+    width, height = 1334, 1000
     body = [
-        '<rect width="1200" height="440" rx="28" fill="#101118"/>',
-        '<circle cx="84" cy="72" r="8" fill="#ff6b6b"/><circle cx="110" cy="72" r="8" fill="#ffd166"/><circle cx="136" cy="72" r="8" fill="#5faf5f"/>',
-        '<text x="80" y="138" fill="#ffffff" font-size="42" font-weight="800">Coralline Codex</text>',
-        '<text x="80" y="174" fill="#a8a8a8" font-size="17">Usage limits, session tokens, and a polished terminal companion.</text>',
-        '<rect x="64" y="214" width="1072" height="138" rx="18" fill="#1e1f2a" stroke="#343745" stroke-width="2"/>',
-        '<text x="90" y="250" fill="#777f98" font-size="13">COMPANION</text>',
+        '<rect x="1" y="1" width="1332" height="998" rx="14" fill="#0d0f17" stroke="#262b3d" stroke-width="2"/>',
+        '<circle cx="28" cy="31" r="7" fill="#ff5f56"/><circle cx="52" cy="31" r="7" fill="#ffbd2e"/><circle cx="76" cy="31" r="7" fill="#27c93f"/>',
+        '<text x="667" y="39" fill="#969baf" font-size="20" text-anchor="middle">coralline codex — pick your vibe</text>',
+        '<line x1="20" y1="62" x2="1314" y2="62" stroke="#262b3d"/>',
     ]
-    x = 90
-    segments = (
-        ("7d [####-] 94% reset 6d18h", palette["git_ok"]),
-        ("burn 7d 4d12h", palette["profile"]),
-        ("tok 123.4k in:120.0k out:3.4k", palette["model"]),
-    )
-    for label, color in segments:
-        item, item_width = pill(x, 268, label, color, palette["foreground"])
-        body.append(item)
-        x += item_width + 12
-    body.extend(
-        (
-            '<text x="90" y="334" fill="#8d96af" font-size="13">native footer: model · context remaining · limits · used tokens</text>',
-            '<rect x="64" y="382" width="1072" height="1" fill="#2b2e3a"/>',
-            '<text x="80" y="414" fill="#7aa2f7" font-size="14" font-weight="700">macOS</text>',
-            '<text x="170" y="414" fill="#a8a8a8" font-size="14">full</text>',
-            '<text x="260" y="414" fill="#7aa2f7" font-size="14" font-weight="700">Windows WSL</text>',
-            '<text x="400" y="414" fill="#a8a8a8" font-size="14">full</text>',
-            '<text x="490" y="414" fill="#7aa2f7" font-size="14" font-weight="700">Windows PowerShell</text>',
-            '<text x="690" y="414" fill="#a8a8a8" font-size="14">native footer + usage</text>',
-            '<text x="1018" y="414" fill="#5faf5f" font-size="14" font-weight="700">v0.2</text>',
+    selected = {
+        palette["name"]: palette
+        for palette in palettes
+        if palette["name"] in {
+            "claude-coral", "catppuccin-mocha", "nord",
+            "gruvbox-dark", "tokyo-night", "mono",
+        }
+    }
+    for index, theme_name in enumerate((
+        "claude-coral", "catppuccin-mocha", "nord",
+        "gruvbox-dark", "tokyo-night", "mono",
+    )):
+        palette = selected[theme_name]
+        label_y = 101 + index * 148
+        body.append(
+            f'<text x="40" y="{label_y}" fill="#636a87" font-size="15" '
+            f'font-weight="700">{esc(theme_name.upper())}</text>'
         )
-    )
-    return document(width, height, "\n".join(body), "Coralline Codex terminal usage companion")
+        rows = (
+            (
+                ("~/dev/coralline-codex", "directory"),
+                (" main+!?", "git_dirty"),
+                ("◆ gpt-5.6", "model"),
+                ("◷ 16:53", "clock"),
+            ),
+            (
+                ("7d ▰▰▰▰▱ 79% ↺1d11h", "git_ok"),
+                ("↗7d 4d12h", "profile"),
+                ("Σ123.4k ↑120.0k ↓3.4k", "model"),
+            ),
+        )
+        for row_index, segments in enumerate(rows):
+            x = 40
+            y = label_y + 11 + row_index * 52
+            for segment_index, (label, key) in enumerate(segments):
+                item, item_width = powerline_segment(
+                    x,
+                    y,
+                    label,
+                    palette[key],
+                    palette["foreground"],
+                    first=segment_index == 0,
+                    font_size=22,
+                    height=46,
+                )
+                body.append(item)
+                x += item_width
+    return document(width, height, "\n".join(body), "Six Coralline Codex themes with connected Powerline arrows")
 
 
 def render_themes(palettes: list[dict[str, str]]) -> str:
@@ -111,10 +154,17 @@ def render_themes(palettes: list[dict[str, str]]) -> str:
         body.append(f'<rect x="{x}" y="{y}" width="344" height="104" rx="14" fill="{esc(palette["background"])}" stroke="#343745"/>')
         body.append(f'<text x="{x + 18}" y="{y + 29}" fill="#ffffff" font-size="14" font-weight="700">{esc(palette["name"])}</text>')
         px = x + 18
-        for label, key in (("94%", "git_ok"), ("Σ12.4k", "model"), ("main", "directory")):
-            item, item_width = pill(px, y + 48, label, palette[key], palette["foreground"])
+        for segment_index, (label, key) in enumerate((("94%", "git_ok"), ("Σ12.4k", "model"), ("main", "directory"))):
+            item, item_width = powerline_segment(
+                px,
+                y + 48,
+                label,
+                palette[key],
+                palette["foreground"],
+                first=segment_index == 0,
+            )
             body.append(item)
-            px += item_width + 8
+            px += item_width
     return document(width, height, "\n".join(body), "Coralline Codex theme gallery")
 
 
@@ -123,7 +173,7 @@ def outputs() -> dict[Path, str]:
     if len(palettes) != 9:
         raise ValueError(f"expected 9 palettes, found {len(palettes)}")
     return {
-        ASSETS / "hero.svg": render_hero(palettes[0]),
+        ASSETS / "hero.svg": render_hero(palettes),
         ASSETS / "themes.svg": render_themes(palettes),
     }
 

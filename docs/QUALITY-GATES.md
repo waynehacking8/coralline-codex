@@ -9,7 +9,7 @@ and future Codex releases.
 | Usage correctness | 9/10 | Official app-server fixture, weekly-window classification, exact reset, transient-failure retention, stale marker |
 | Token tracking | 9/10 | Snake/camel event forms, incremental JSONL, partial line, process-tree discovery, session rollover |
 | Projection honesty | 9/10 | Five-minute minimum baseline, warming/idle/reset-safe/tracking states, deterministic synthetic rates |
-| Responsive rendering | 9/10 | Nine themes, three styles, paths with spaces, 30-column critical-value preservation |
+| Responsive rendering | 9/10 | Nine themes, four styles, paths with spaces, 30-column critical-value preservation |
 | Onboarding | 9/10 | Visual wizard, strict validation, previews, managed shell hook, explicit bypass |
 | Update safety | 9/10 | Byte-identical runtime backup, user config preservation, release highlights, idempotent hooks |
 | Uninstall safety | 9/10 | Scoped removal, recoverable backups, unrelated profile/config preservation |
@@ -38,4 +38,3 @@ pwsh -NoProfile -File .\test\windows.ps1
 
 Release only after all three hosted jobs—Linux, macOS, and Windows—complete
 successfully on the exact commit being tagged.
-
