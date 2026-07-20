@@ -318,14 +318,28 @@ pass 'critical usage data adapts down to a 30-column terminal'
 watch_home="$usage_dir/watcher home"
 mkdir -p "$watch_home/sessions/2026/07/20"
 cp "$rollout" "$watch_home/sessions/2026/07/20/rollout-watcher.jsonl"
+watch_cwd="$TEST_ROOT/watcher project"
+mkdir -p "$watch_cwd"
+python3 - "$watch_home/sessions/2026/07/20/rollout-watcher.jsonl" "$watch_cwd" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+lines = path.read_text(encoding="utf-8").splitlines()
+first = json.loads(lines[0])
+first["payload"]["cwd"] = sys.argv[2]
+lines[0] = json.dumps(first, separators=(",", ":"))
+path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
 watched_rate="$usage_dir/watched rate.env"
 watched_session="$usage_dir/watched session.env"
 python3 "$ROOT/lib/usage.py" watch --codex-bin "$fake_codex" --codex-home "$watch_home" \
   --rate-cache "$watched_rate" --session-cache "$watched_session" \
-  --start-epoch 0 --cwd /tmp/project --pid $$ --interval 30 &
+  --start-epoch 0 --cwd "$watch_cwd" --pid $$ --interval 30 &
 watcher_pid=$!
 for _ in 1 2 3 4 5 6; do
-  if [ -f "$watched_session" ] && rg -q 'CORALLINE_SESSION_AVAILABLE=1' "$watched_session"; then break; fi
+  if [ -f "$watched_session" ] && grep -q 'CORALLINE_SESSION_AVAILABLE=1' "$watched_session"; then break; fi
   sleep 0.5
 done
 kill "$watcher_pid" >/dev/null 2>&1 || true
@@ -411,7 +425,8 @@ python3 "$ROOT/lib/shell_integration.py" install --codex-home "$shell_state_home
   --wrapper "$shell_wrapper" --codex-bin "$shell_codex" >/dev/null
 [ "$hook_hash" = "$(hash_file "$shell_rc")" ] || fail 'shell hook installation is not idempotent'
 hook_run=$(bash -c 'source "$1"; codex --yolo' _ "$shell_rc")
-assert_contains "$hook_run" "wrapper:$shell_codex:--yolo" 'managed hook routes codex through wrapper'
+shell_codex_resolved=$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve())' "$shell_codex")
+assert_contains "$hook_run" "wrapper:$shell_codex_resolved:--yolo" 'managed hook routes codex through wrapper'
 bypass_run=$(CORALLINE_CODEX_DISABLE=1 bash -c 'source "$1"; codex --version' _ "$shell_rc")
 assert_contains "$bypass_run" 'real:--version' 'managed hook supports an explicit bypass'
 python3 "$ROOT/lib/shell_integration.py" status --codex-home "$shell_state_home" \
