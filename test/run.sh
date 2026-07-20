@@ -5,6 +5,8 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 TEST_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/coralline-codex-tests.XXXXXX")
 trap 'rm -rf -- "$TEST_ROOT"' EXIT
 passes=0
+WINDOWS_SHELL=0
+case $(uname -s) in MINGW* | MSYS* | CYGWIN*) WINDOWS_SHELL=1 ;; esac
 
 pass() { printf 'ok %02d - %s\n' "$((++passes))" "$1"; }
 fail() { printf 'not ok - %s\n' "$1" >&2; exit 1; }
@@ -22,14 +24,26 @@ PY
 
 if [ "${CORALLINE_TEST_USE_FAKE_CODEX:-0}" = 1 ]; then
   mkdir -p "$TEST_ROOT/test-bin"
-  cat > "$TEST_ROOT/test-bin/codex" <<'EOF'
-#!/usr/bin/env bash
-case " $* " in
-  *' --version '*) printf 'codex-cli platform-test\n' ;;
-  *) printf 'fake codex: %s\n' "$*" ;;
-esac
+  cat > "$TEST_ROOT/test-bin/platform_codex.py" <<'PY'
+import sys
+if "--version" in sys.argv:
+    print("codex-cli platform-test")
+else:
+    print("fake codex: " + " ".join(sys.argv[1:]))
+PY
+  if ((WINDOWS_SHELL)); then
+    platform_python_windows=$(cygpath -w "$TEST_ROOT/test-bin/platform_codex.py")
+    cat > "$TEST_ROOT/test-bin/codex.cmd" <<EOF
+@echo off
+python "$platform_python_windows" %*
 EOF
-  chmod 755 "$TEST_ROOT/test-bin/codex"
+  else
+    cat > "$TEST_ROOT/test-bin/codex" <<EOF
+#!/usr/bin/env bash
+exec python3 "$TEST_ROOT/test-bin/platform_codex.py" "\$@"
+EOF
+    chmod 755 "$TEST_ROOT/test-bin/codex"
+  fi
   PATH="$TEST_ROOT/test-bin:$PATH"
   export PATH
 fi
@@ -101,18 +115,36 @@ pass 'missing optional data degrades without fabricated values'
 
 usage_dir="$TEST_ROOT/usage cache"
 mkdir -p "$usage_dir"
-fake_codex="$usage_dir/fake codex"
-cat > "$fake_codex" <<'EOF'
-#!/usr/bin/env bash
-while IFS= read -r line; do
-  case $line in
-    *'"method":"initialize"'*) printf '%s\n' '{"id":1,"result":{"userAgent":"fake"}}' ;;
-    *'account/rateLimits/read'*) printf '%s\n' '{"id":2,"result":{"rateLimits":{"planType":"pro","primary":{"usedPercent":34,"windowDurationMins":10080,"resetsAt":2000000000},"secondary":null}}}' ;;
-    *'account/usage/read'*) printf '%s\n' '{"id":3,"result":{"summary":{"lifetimeTokens":123456789},"dailyUsageBuckets":[]}}' ;;
-  esac
-done
+cat > "$usage_dir/fake_codex.py" <<'PY'
+import json
+import sys
+for line in sys.stdin:
+    message = json.loads(line)
+    method = message.get("method")
+    if method == "initialize":
+        print(json.dumps({"id": 1, "result": {"userAgent": "fake"}}), flush=True)
+    elif method == "account/rateLimits/read":
+        print(json.dumps({"id": 2, "result": {"rateLimits": {"planType": "pro", "primary": {
+            "usedPercent": 34, "windowDurationMins": 10080, "resetsAt": 2000000000
+        }, "secondary": None}}}), flush=True)
+    elif method == "account/usage/read":
+        print(json.dumps({"id": 3, "result": {"summary": {"lifetimeTokens": 123456789}, "dailyUsageBuckets": []}}), flush=True)
+PY
+if ((WINDOWS_SHELL)); then
+  fake_codex="$usage_dir/fake codex.cmd"
+  usage_python_windows=$(cygpath -w "$usage_dir/fake_codex.py")
+  cat > "$fake_codex" <<EOF
+@echo off
+python "$usage_python_windows" %*
 EOF
-chmod 755 "$fake_codex"
+else
+  fake_codex="$usage_dir/fake codex"
+  cat > "$fake_codex" <<EOF
+#!/usr/bin/env bash
+exec python3 "$usage_dir/fake_codex.py" "\$@"
+EOF
+  chmod 755 "$fake_codex"
+fi
 rate_cache="$usage_dir/rate limits.env"
 python3 "$ROOT/lib/usage.py" fetch --codex-bin "$fake_codex" --rate-cache "$rate_cache"
 rate_values=$(< "$rate_cache")
@@ -254,6 +286,26 @@ assert_file "$backup" 'config backup created'
 after_backup=$(hash_file "$backup")
 [ "$before" = "$after_backup" ] || fail 'config backup is not byte-identical'
 pass 'configuration merging preserves unrelated data and backs up first'
+
+wizard_home="$TEST_ROOT/wizard home"
+mkdir -p "$wizard_home"
+wizard_output=$(printf '2\nclassic\n2\n1\n30\n60\nn\ny\n' | \
+  TERM=xterm-256color CODEX_HOME="$wizard_home" "$ROOT/configure.sh" --wizard)
+wizard_config=$(< "$wizard_home/coralline-codex.conf")
+assert_contains "$wizard_config" 'CC_THEME=catppuccin-mocha' 'wizard saved selected theme'
+assert_contains "$wizard_config" 'CC_STYLE=classic' 'wizard saved classic style'
+assert_contains "$wizard_config" 'CC_ASCII=on' 'wizard saved ASCII compatibility mode'
+assert_contains "$wizard_config" "CC_SEGMENTS='limits tokens dir git elapsed clock'" 'wizard saved focused layout'
+assert_contains "$wizard_config" 'CC_USAGE_REFRESH=30' 'wizard saved usage refresh interval'
+assert_contains "$wizard_config" 'CC_USAGE_STALE_AFTER=60' 'wizard saved stale threshold'
+assert_contains "$wizard_output" 'Final preview:' 'wizard rendered a final visual preview'
+configured_preview=$(TERM=xterm-256color CODEX_HOME="$wizard_home" "$ROOT/configure.sh" --preview)
+assert_contains "$configured_preview" '7d ' 'configured preview contains realistic quota data'
+assert_contains "$configured_preview" 'tok 12.4k' 'configured preview contains realistic token data'
+if CODEX_HOME="$wizard_home" "$ROOT/configure.sh" --segments 'limits invented' >/dev/null 2>&1; then
+  fail 'configure accepted an unknown segment'
+fi
+pass 'visual wizard previews, validates, and persists a complete setup'
 
 shell_dir="$TEST_ROOT/shell integration"
 mkdir -p "$shell_dir/backups"

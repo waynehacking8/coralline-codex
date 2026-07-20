@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+ROOT=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 MODE=ansi
 WIDTH=${COLUMNS:-0}
 CWD_VALUE=${PWD}
@@ -35,9 +35,14 @@ done
 : "${CC_NATIVE_STATUS:=on}"
 : "${CC_USAGE_REFRESH:=60}"
 : "${CC_USAGE_STALE_AFTER:=180}"
+# All sourced paths are explicit configuration/cache inputs.
+# shellcheck disable=SC1090
 [ -f "$CONFIG_FILE" ] && . "$CONFIG_FILE"
+# shellcheck disable=SC1090
 [ -n "$STATE_FILE" ] && [ -f "$STATE_FILE" ] && . "$STATE_FILE"
+# shellcheck disable=SC1090
 [ -n "${CORALLINE_RATE_CACHE:-}" ] && [ -f "$CORALLINE_RATE_CACHE" ] && . "$CORALLINE_RATE_CACHE"
+# shellcheck disable=SC1090
 [ -n "${CORALLINE_SESSION_CACHE:-}" ] && [ -f "$CORALLINE_SESSION_CACHE" ] && . "$CORALLINE_SESSION_CACHE"
 
 case $CC_ASCII in
@@ -64,6 +69,8 @@ fi
 
 shorten_path() {
   local value=$1 max=${2:-40} home_display=$HOME
+  # This tilde is intentional display text.
+  # shellcheck disable=SC2088
   if [[ $value == "$home_display" ]]; then value='~';
   elif [[ $value == "$home_display"/* ]]; then value="~/${value#"$home_display"/}"; fi
   if ((${#value} > max)); then
@@ -76,7 +83,7 @@ shorten_path() {
 }
 
 git_segments() {
-  SEG_GIT= SEG_PROJECT= GIT_DIRTY=0
+  SEG_GIT='' SEG_PROJECT='' GIT_DIRTY=0
   local root status line branch='' staged=0 modified=0 untracked=0 ahead=0 behind=0
   root=$(git -C "$CWD_VALUE" rev-parse --show-toplevel 2>/dev/null) || return 0
   SEG_PROJECT=${root##*/}
@@ -121,7 +128,7 @@ node_segment() {
 python_segment() {
   SEG_LABEL=
   [ "$CC_PYTHON" = on ] || return 0
-  local value= file
+  local value='' file
   if [ -n "${VIRTUAL_ENV:-}" ]; then value=${VIRTUAL_ENV##*/}
   elif [ -n "${CONDA_DEFAULT_ENV:-}" ] && [ "${CONDA_DEFAULT_ENV}" != base ]; then value=$CONDA_DEFAULT_ENV
   elif [ -f "$CWD_VALUE/.python-version" ]; then IFS= read -r value < "$CWD_VALUE/.python-version" || true
@@ -181,7 +188,7 @@ git_segments
 declare -a LABELS=() COLORS=()
 add_segment() { [ -n "${1:-}" ] && { LABELS+=("$1"); COLORS+=("$2"); }; }
 for segment in $CC_SEGMENTS; do
-  SEG_LABEL= COLOR=$C_FG
+  SEG_LABEL='' COLOR=$C_FG
   case $segment in
     dir)
       dir_limit=$CC_MAX_DIR
@@ -276,6 +283,8 @@ for i in "${!KEEP_LABELS[@]}"; do
     elif [ "$CC_STYLE" = lean ]; then
       [ -n "$out" ] && out+="#[fg=$C_DIM] · "
       out+="#[fg=$color,bold]$label#[default]"
+    elif [ "$CC_STYLE" = classic ]; then
+      out+="#[fg=$C_FG,bg=$color,bold] $label #[default] "
     else
       out+="#[fg=$color]#[fg=$C_FG,bg=$color,bold] $label #[fg=$color,bg=$C_BG,nobold]#[default] "
     fi
@@ -284,6 +293,7 @@ for i in "${!KEEP_LABELS[@]}"; do
     hex_to_rgb "$C_FG"; fgtext="\033[38;2;${RGB_R};${RGB_G};${RGB_B}m"
     if [ "$ASCII" = 1 ]; then out+="\033[1m${fgcap}[ $label ]\033[0m ";
     elif [ "$CC_STYLE" = lean ]; then [ -n "$out" ] && out+=" \033[0m· "; out+="\033[1m${fgcap}$label\033[0m";
+    elif [ "$CC_STYLE" = classic ]; then out+="${bg}${fgtext}\033[1m $label \033[0m ";
     else out+="${fgcap}${bg}${fgtext}\033[1m $label \033[0m${fgcap}\033[0m "; fi
   fi
 done

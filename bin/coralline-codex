@@ -4,11 +4,11 @@ set -euo pipefail
 resolve_self() {
   local source=${BASH_SOURCE[0]} dir
   while [ -L "$source" ]; do
-    dir=$(CDPATH= cd -P -- "$(dirname -- "$source")" && pwd)
+    dir=$(CDPATH='' cd -P -- "$(dirname -- "$source")" && pwd)
     source=$(readlink -- "$source")
     [[ $source != /* ]] && source=$dir/$source
   done
-  CDPATH= cd -P -- "$(dirname -- "$source")/.." && pwd
+  CDPATH='' cd -P -- "$(dirname -- "$source")/.." && pwd
 }
 ROOT=$(resolve_self)
 CODEX_DIR=${CODEX_HOME:-$HOME/.codex}
@@ -24,7 +24,7 @@ cleanup_companion() {
     wait "$CORALLINE_CLEANUP_USAGE_PID" >/dev/null 2>&1 || true
   fi
   if [ -n "$CORALLINE_CLEANUP_SOCKET" ]; then
-    TMUX= tmux -L "$CORALLINE_CLEANUP_SOCKET" kill-server >/dev/null 2>&1 || true
+    TMUX='' tmux -L "$CORALLINE_CLEANUP_SOCKET" kill-server >/dev/null 2>&1 || true
   fi
   if [ -n "$CORALLINE_CLEANUP_TEMP" ] && [ -d "$CORALLINE_CLEANUP_TEMP" ]; then
     rm -rf -- "$CORALLINE_CLEANUP_TEMP"
@@ -54,6 +54,8 @@ EOF
 native_args() {
   NATIVE_ARGS=()
   local native=on theme=claude-coral
+  # User-selected companion configuration.
+  # shellcheck disable=SC1090
   [ -f "$CONFIG" ] && . "$CONFIG"
   native=${CC_NATIVE_STATUS:-on}; theme=${CC_THEME:-claude-coral}
   if [ "$native" = on ]; then
@@ -74,9 +76,9 @@ run_codex() {
       companion=0 ;;
   esac
   native_args
-  local -a command=("$CODEX_BIN" "${NATIVE_ARGS[@]}" "$@")
+  local -a codex_command=("$CODEX_BIN" "${NATIVE_ARGS[@]}" "$@")
   if ((companion == 0)) || [ ! -t 0 ] || [ ! -t 1 ] || ! command -v tmux >/dev/null 2>&1; then
-    exec "${command[@]}"
+    exec "${codex_command[@]}"
   fi
 
   local temp socket session launch status_script start effective bg rate_cache session_cache pane_pid usage_refresh
@@ -103,15 +105,19 @@ run_codex() {
   launch=$temp/launch.sh
   {
     printf '#!/usr/bin/env bash\nexec'
-    printf ' %q' "${command[@]}"
+    printf ' %q' "${codex_command[@]}"
     printf '\n'
   } > "$launch"
   chmod 700 "$launch"
   status_script=$temp/status.sh
   {
     printf '#!/usr/bin/env bash\n'
-    printf 'width=$(TMUX= tmux -L %q display-message -p -t %q %q 2>/dev/null || printf 120)\n' \
+    # Emits a script that expands width at render time.
+    # shellcheck disable=SC2016
+    printf 'width=$(env -u TMUX tmux -L %q display-message -p -t %q %q 2>/dev/null || printf 120)\n' \
       "$socket" "$session" '#{client_width}'
+    # Emits a script that expands width at render time.
+    # shellcheck disable=SC2016
     printf 'exec %q --tmux --width "$width" --cwd %q --state %q --config %q\n' \
       "$ROOT/lib/render.sh" "$PWD" "$temp/state" "$CONFIG"
   } > "$status_script"
@@ -119,8 +125,8 @@ run_codex() {
   bg=$(awk -F '\t' -v wanted="${CC_THEME:-claude-coral}" '$1 == wanted { print $2; exit }' "$ROOT/themes/palettes.tsv")
   bg=${bg:-#1e1f2a}
 
-  TMUX= tmux -L "$socket" -f /dev/null new-session -d -s "$session" -c "$PWD" "$launch"
-  pane_pid=$(TMUX= tmux -L "$socket" display-message -p -t "$session" '#{pane_pid}' 2>/dev/null || printf 0)
+  TMUX='' tmux -L "$socket" -f /dev/null new-session -d -s "$session" -c "$PWD" "$launch"
+  pane_pid=$(TMUX='' tmux -L "$socket" display-message -p -t "$session" '#{pane_pid}' 2>/dev/null || printf 0)
   usage_refresh=${CC_USAGE_REFRESH:-60}
   if ! [[ $usage_refresh =~ ^[0-9]+$ ]] || ((usage_refresh < 30)); then usage_refresh=60; fi
   if [[ $pane_pid =~ ^[1-9][0-9]*$ ]]; then
@@ -131,19 +137,19 @@ run_codex() {
       --interval "$usage_refresh" >"$temp/usage.log" 2>&1 &
     CORALLINE_CLEANUP_USAGE_PID=$!
   fi
-  TMUX= tmux -L "$socket" set-option -g status on
-  TMUX= tmux -L "$socket" set-option -g status-position bottom
-  TMUX= tmux -L "$socket" set-option -g status-interval 1
-  TMUX= tmux -L "$socket" set-option -g status-left-length 1000
-  TMUX= tmux -L "$socket" set-option -g status-right-length 0
-  TMUX= tmux -L "$socket" set-option -g status-right ''
-  TMUX= tmux -L "$socket" set-option -g status-style "bg=$bg"
-  TMUX= tmux -L "$socket" set-option -g status-left "#($status_script)"
-  TMUX= tmux -L "$socket" attach-session -t "$session"
+  TMUX='' tmux -L "$socket" set-option -g status on
+  TMUX='' tmux -L "$socket" set-option -g status-position bottom
+  TMUX='' tmux -L "$socket" set-option -g status-interval 1
+  TMUX='' tmux -L "$socket" set-option -g status-left-length 1000
+  TMUX='' tmux -L "$socket" set-option -g status-right-length 0
+  TMUX='' tmux -L "$socket" set-option -g status-right ''
+  TMUX='' tmux -L "$socket" set-option -g status-style "bg=$bg"
+  TMUX='' tmux -L "$socket" set-option -g status-left "#($status_script)"
+  TMUX='' tmux -L "$socket" attach-session -t "$session"
 }
 
-command=${1:-run}
-case $command in
+subcommand=${1:-run}
+case $subcommand in
   run) (($#)) && shift; run_codex "$@" ;;
   render) shift; exec "$ROOT/lib/render.sh" "$@" ;;
   usage)
@@ -163,10 +169,18 @@ case $command in
     exec python3 "$ROOT/lib/shell_integration.py" "$shell_action" "${shell_common[@]}" "$@" ;;
   preview)
     shift
+    preview_now=$(date +%s)
     while IFS=$'\t' read -r theme _; do
       [[ $theme == \#* || -z $theme ]] && continue
       printf '%-20s ' "$theme"
-      CC_THEME=$theme CORALLINE_CODEX_CONFIG=/dev/null "$ROOT/lib/render.sh" --width 200 "$@"
+      CC_THEME=$theme CC_SEGMENTS='limits tokens dir git model elapsed clock' \
+        CORALLINE_RATE_AVAILABLE=1 CORALLINE_LIMIT_COUNT=1 \
+        CORALLINE_LIMIT1_LABEL=7d CORALLINE_LIMIT1_USED=15 CORALLINE_LIMIT1_REMAINING=85 \
+        CORALLINE_LIMIT1_RESET=$((preview_now + 597600)) CORALLINE_RATE_UPDATED=$preview_now \
+        CORALLINE_SESSION_AVAILABLE=1 CORALLINE_SESSION_TOTAL=12463 \
+        CORALLINE_SESSION_INPUT=12456 CORALLINE_SESSION_OUTPUT=7 \
+        CORALLINE_MODEL=gpt-5.6-codex CORALLINE_START_EPOCH=$((preview_now - 754)) \
+        CORALLINE_CODEX_CONFIG=/dev/null "$ROOT/lib/render.sh" --width 200 "$@"
     done < "$ROOT/themes/palettes.tsv" ;;
   configure) shift; exec "$ROOT/configure.sh" "$@" ;;
   verify) shift; exec "$ROOT/test/verify-install.sh" --codex-home "$CODEX_DIR" "$@" ;;

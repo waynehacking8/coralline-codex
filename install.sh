@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOURCE=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+SOURCE=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 CODEX_DIR=${CODEX_HOME:-$HOME/.codex}
 BIN_DIR=${CORALLINE_BIN_DIR:-$HOME/.local/bin}
 MODE=install
