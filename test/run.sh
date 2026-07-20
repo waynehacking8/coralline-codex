@@ -36,10 +36,11 @@ else:
 PY
   if ((WINDOWS_SHELL)); then
     platform_python_windows=$(cygpath -w "$TEST_ROOT/test-bin/platform_codex.py")
-    cat > "$TEST_ROOT/test-bin/codex.cmd" <<EOF
-@echo off
-python "$platform_python_windows" %*
+    cat > "$TEST_ROOT/test-bin/codex" <<EOF
+#!/usr/bin/env bash
+exec python "$platform_python_windows" "\$@"
 EOF
+    chmod 755 "$TEST_ROOT/test-bin/codex"
   else
     cat > "$TEST_ROOT/test-bin/codex" <<EOF
 #!/usr/bin/env bash
