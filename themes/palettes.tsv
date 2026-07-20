@@ -1,0 +1,10 @@
+# name\tbackground\tforeground\tdir\tproject\tgit_ok\tgit_dirty\tnode\tpython\tmodel\tprofile\tduration\tclock\tdim
+claude-coral	#1e1f2a	#ffffff	#51a6c7	#51a6c7	#5faf5f	#af5faf	#5fa04e	#3776ab	#af5f5f	#8d6cab	#5f5faf	#46506e	#a8a8a8
+catppuccin-mocha	#1e1e2e	#1e1e2e	#89b4fa	#89b4fa	#a6e3a1	#fab387	#a6e3a1	#89dceb	#cba6f7	#f5c2e7	#94e2d5	#74c7ec	#6c7086
+dracula	#282a36	#282a36	#8be9fd	#ff79c6	#50fa7b	#ffb86c	#50fa7b	#82a0fa	#bd93f9	#ff79c6	#8be9fd	#ff79c6	#6272a4
+gruvbox-dark	#282828	#ebdbb2	#458588	#458588	#689d6a	#d65d0e	#98971a	#3d6d99	#b16286	#d79921	#7c6f64	#504945	#a89984
+lunar-pink	#131313	#131313	#df6cbe	#79e0e2	#05a6a8	#008cff	#2ae609	#4b8bbe	#e621af	#e09ece	#79e0e2	#09e4e6	#777777
+mono	#1c1c1c	#ffffff	#808080	#a8a8a8	#8a8a8a	#bcbcbc	#8a8a8a	#666666	#9e9e9e	#d0d0d0	#767676	#8a8a8a	#a8a8a8
+nord	#2e3440	#2e3440	#88c0d0	#8fbcbb	#a3be8c	#ebcb8b	#a3be8c	#5e81ac	#b48ead	#d08770	#81a1c1	#81a1c1	#7c879c
+reverie	#352827	#382842	#7298c7	#a4d8ff	#a8c89e	#f3d98f	#92cc78	#7dafde	#f9a8bb	#d6c8df	#a4d8ff	#f5f1e6	#7298c7
+tokyo-night	#1a1b26	#1a1b26	#7aa2f7	#7dcfff	#9ece6a	#e0af68	#9ece6a	#7aa2f7	#bb9af7	#ff9e64	#73daca	#7dcfff	#565f89

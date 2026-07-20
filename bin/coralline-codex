@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+resolve_self() {
+  local source=${BASH_SOURCE[0]} dir
+  while [ -L "$source" ]; do
+    dir=$(CDPATH= cd -P -- "$(dirname -- "$source")" && pwd)
+    source=$(readlink -- "$source")
+    [[ $source != /* ]] && source=$dir/$source
+  done
+  CDPATH= cd -P -- "$(dirname -- "$source")/.." && pwd
+}
+ROOT=$(resolve_self)
+CODEX_DIR=${CODEX_HOME:-$HOME/.codex}
+CONFIG=${CORALLINE_CODEX_CONFIG:-$CODEX_DIR/coralline-codex.conf}
+CODEX_BIN=${CORALLINE_CODEX_BIN:-$(command -v codex || true)}
+CORALLINE_CLEANUP_SOCKET=
+CORALLINE_CLEANUP_TEMP=
+
+cleanup_companion() {
+  if [ -n "$CORALLINE_CLEANUP_SOCKET" ]; then
+    TMUX= tmux -L "$CORALLINE_CLEANUP_SOCKET" kill-server >/dev/null 2>&1 || true
+  fi
+  if [ -n "$CORALLINE_CLEANUP_TEMP" ] && [ -d "$CORALLINE_CLEANUP_TEMP" ]; then
+    rm -rf -- "$CORALLINE_CLEANUP_TEMP"
+  fi
+}
+
+usage() {
+  cat <<'EOF'
+usage: coralline-codex [command] [arguments]
+
+Commands:
+  run [CODEX_ARGS...]   launch Codex with the native footer and companion bar
+  render [ARGS...]      render the companion once
+  preview               preview every bundled theme
+  configure [ARGS...]   update companion configuration safely
+  verify                verify the installed integration
+  update                update from the GitHub repository
+  uninstall             remove the port, retaining recoverable backups
+
+With no command, arguments are passed to an interactive Codex run.
+Use --no-companion before Codex arguments to keep only the themed native footer.
+EOF
+}
+
+native_args() {
+  NATIVE_ARGS=()
+  local native=on theme=claude-coral
+  [ -f "$CONFIG" ] && . "$CONFIG"
+  native=${CC_NATIVE_STATUS:-on}; theme=${CC_THEME:-claude-coral}
+  if [ "$native" = on ]; then
+    NATIVE_ARGS+=(
+      -c 'tui.status_line=["model-with-reasoning","context-remaining","five-hour-limit","weekly-limit","used-tokens"]'
+      -c tui.status_line_use_colors=true
+      -c "tui.theme=\"coralline-$theme\""
+    )
+  fi
+}
+
+run_codex() {
+  [ -n "$CODEX_BIN" ] || { printf 'coralline-codex: codex is not installed or not on PATH\n' >&2; return 127; }
+  local companion=1
+  if [ "${1:-}" = --no-companion ]; then companion=0; shift; fi
+  case ${1:-} in
+    exec | e | review | doctor | mcp | mcp-server | plugin | login | logout | completion | update | features | help | apply | sandbox | app-server | exec-server)
+      companion=0 ;;
+  esac
+  native_args
+  local -a command=("$CODEX_BIN" "${NATIVE_ARGS[@]}" "$@")
+  if ((companion == 0)) || [ ! -t 0 ] || [ ! -t 1 ] || ! command -v tmux >/dev/null 2>&1; then
+    exec "${command[@]}"
+  fi
+
+  local temp socket session launch status_script start effective bg
+  temp=$(mktemp -d "${TMPDIR:-/tmp}/coralline-codex.XXXXXX")
+  socket=coralline-$$
+  session=codex
+  start=$(date +%s)
+  CORALLINE_CLEANUP_SOCKET=$socket
+  CORALLINE_CLEANUP_TEMP=$temp
+  trap cleanup_companion EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+
+  effective=$(python3 "$ROOT/lib/config.py" effective --codex-home "$CODEX_DIR" --shell -- "$@")
+  {
+    printf 'CORALLINE_START_EPOCH=%q\n' "$start"
+    printf '%s\n' "$effective"
+  } > "$temp/state"
+  launch=$temp/launch.sh
+  {
+    printf '#!/usr/bin/env bash\nexec'
+    printf ' %q' "${command[@]}"
+    printf '\n'
+  } > "$launch"
+  chmod 700 "$launch"
+  status_script=$temp/status.sh
+  {
+    printf '#!/usr/bin/env bash\nexec %q --tmux --cwd %q --state %q --config %q\n' \
+      "$ROOT/lib/render.sh" "$PWD" "$temp/state" "$CONFIG"
+  } > "$status_script"
+  chmod 700 "$status_script"
+  bg=$(awk -F '\t' -v wanted="${CC_THEME:-claude-coral}" '$1 == wanted { print $2; exit }' "$ROOT/themes/palettes.tsv")
+  bg=${bg:-#1e1f2a}
+
+  TMUX= tmux -L "$socket" -f /dev/null new-session -d -s "$session" -c "$PWD" "$launch"
+  TMUX= tmux -L "$socket" set-option -g status on
+  TMUX= tmux -L "$socket" set-option -g status-position bottom
+  TMUX= tmux -L "$socket" set-option -g status-interval 1
+  TMUX= tmux -L "$socket" set-option -g status-left-length 1000
+  TMUX= tmux -L "$socket" set-option -g status-right-length 0
+  TMUX= tmux -L "$socket" set-option -g status-right ''
+  TMUX= tmux -L "$socket" set-option -g status-style "bg=$bg"
+  TMUX= tmux -L "$socket" set-option -g status-left "#($status_script)"
+  TMUX= tmux -L "$socket" attach-session -t "$session"
+}
+
+command=${1:-run}
+case $command in
+  run) (($#)) && shift; run_codex "$@" ;;
+  render) shift; exec "$ROOT/lib/render.sh" "$@" ;;
+  preview)
+    shift
+    while IFS=$'\t' read -r theme _; do
+      [[ $theme == \#* || -z $theme ]] && continue
+      printf '%-20s ' "$theme"
+      CC_THEME=$theme CORALLINE_CODEX_CONFIG=/dev/null "$ROOT/lib/render.sh" --width 200 "$@"
+    done < "$ROOT/themes/palettes.tsv" ;;
+  configure) shift; exec "$ROOT/configure.sh" "$@" ;;
+  verify) shift; exec "$ROOT/test/verify-install.sh" --codex-home "$CODEX_DIR" "$@" ;;
+  update)
+    shift
+    temp=$(mktemp -d "${TMPDIR:-/tmp}/coralline-update.XXXXXX")
+    trap 'rm -rf -- "$temp"' EXIT
+    git clone --depth 1 https://github.com/waynehacking8/coralline-codex.git "$temp/repo"
+    bash "$temp/repo/install.sh" --update "$@" ;;
+  uninstall) shift; exec bash "$ROOT/install.sh" --uninstall "$@" ;;
+  -h | --help | help) usage ;;
+  *) run_codex "$@" ;;
+esac
