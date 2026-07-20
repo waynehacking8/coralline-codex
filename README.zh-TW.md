@@ -1,9 +1,10 @@
 # Coralline Codex 安裝說明（繁體中文）
 
 Coralline Codex 是專為 OpenAI Codex CLI 製作的 Coralline 移植版。它把 Codex
-原生狀態列與隔離的 tmux 伴隨列結合：原生狀態列負責即時模型、推理強度、
-context、使用限制與 token；Powerlevel10k 風格伴隨列顯示目錄、專案、詳細 Git
-狀態、啟動模型／profile、經過時間、時鐘，以及可選的 Node、Python 環境。
+原生狀態列與隔離的 tmux 伴隨列結合：原生狀態列負責即時模型、推理強度與
+context；Powerlevel10k 風格伴隨列直接顯示方案剩餘用量與重設時間、目前 session
+的輸入／輸出／總 token、目錄、專案、詳細 Git 狀態、啟動模型／profile、經過
+時間、時鐘，以及可選的 Node、Python 環境。
 
 本專案衍生自 [Nanako0129/coralline](https://github.com/Nanako0129/coralline)，
 但不是上游 Claude Code 版本。授權與移植範圍請見 [NOTICE.md](NOTICE.md)。
@@ -46,6 +47,12 @@ coralline-codex --model gpt-5.6 --profile work
 coralline-codex --no-companion   # 只保留 Codex 原生狀態列
 ```
 
+立即查詢方案用量與確切重設時間：
+
+```bash
+coralline-codex usage
+```
+
 tmux 伴隨列使用獨立 server，不會讀取或修改你原本的 `~/.tmux.conf` 或既有
 tmux session。非互動執行時會自動略過 tmux。
 
@@ -63,6 +70,7 @@ coralline-codex configure
 coralline-codex configure --theme tokyo-night --style pill
 coralline-codex configure --node on --python on --runtime-probe off
 coralline-codex configure --ascii on
+coralline-codex configure --usage-refresh 60
 coralline-codex configure --show
 ```
 
@@ -70,6 +78,11 @@ coralline-codex configure --show
 `.python-version`、virtualenv 或 conda 環境；`on` 才會額外執行
 `node --version`／`python3 --version`。資料不存在時只隱藏該區段，不會填入
 猜測值。
+
+預設 `limits` 與 `tokens` 區段會顯示例如
+`7d ▰▰▰▰▱ 88% ↺6d21h` 與 `Σ10.4M ↑10.3M ↓70.5k`。獨立背景程序預設每
+60 秒透過 Codex 官方 app-server 更新方案快照；renderer 本身只讀取權限為
+0600 的本機快取，不會連線。
 
 內建主題：`claude-coral`、`catppuccin-mocha`、`dracula`、
 `gruvbox-dark`、`lunar-pink`、`mono`、`nord`、`reverie`、
@@ -111,6 +124,8 @@ coralline-codex verify
 ./test/run.sh
 ```
 
-renderer 在每次更新畫面時不會發出任何網路請求。Codex 目前沒有 Claude Code
-式外部 `statusLine`／`subagentStatusLine` renderer，因此即時 Codex 專屬數據保留
-在原生 footer；伴隨列不會捏造無法取得的 context、token 或 rate-limit 數值。
+renderer 在每次更新畫面時不會發出任何網路請求。方案限制來自 Codex 官方
+`account/rateLimits/read`，session token 來自本機 rollout 的 `token_count` 事件；
+缺少資料時會隱藏區段，不會捏造數值。Codex 目前仍沒有 Claude Code 式外部
+`statusLine`／`subagentStatusLine` renderer，因此 context 百分比、即時模型與推理
+強度仍由原生 footer 顯示。

@@ -27,14 +27,17 @@ done
 : "${CC_THEME:=claude-coral}"
 : "${CC_STYLE:=pill}"
 : "${CC_ASCII:=auto}"
-: "${CC_SEGMENTS:=dir project git node python model profile elapsed clock}"
+: "${CC_SEGMENTS:=limits tokens dir git project node python model profile elapsed clock}"
 : "${CC_NODE:=off}"
 : "${CC_PYTHON:=off}"
 : "${CC_RUNTIME_PROBE:=off}"
 : "${CC_MAX_DIR:=40}"
 : "${CC_NATIVE_STATUS:=on}"
+: "${CC_USAGE_REFRESH:=60}"
 [ -f "$CONFIG_FILE" ] && . "$CONFIG_FILE"
 [ -n "$STATE_FILE" ] && [ -f "$STATE_FILE" ] && . "$STATE_FILE"
+[ -n "${CORALLINE_RATE_CACHE:-}" ] && [ -f "$CORALLINE_RATE_CACHE" ] && . "$CORALLINE_RATE_CACHE"
+[ -n "${CORALLINE_SESSION_CACHE:-}" ] && [ -f "$CORALLINE_SESSION_CACHE" ] && . "$CORALLINE_SESSION_CACHE"
 
 case $CC_ASCII in
   on | 1 | true) ASCII=1 ;;
@@ -137,6 +140,42 @@ format_elapsed() {
   else printf -v SEG_LABEL '%ds' "$s"; fi
 }
 
+format_token_count() {
+  local value=${1:-0}
+  case $value in '' | *[!0-9]*) TOKEN_TEXT=; return ;; esac
+  if ((value >= 1000000)); then printf -v TOKEN_TEXT '%d.%dM' $((value / 1000000)) $(((value % 1000000) / 100000));
+  elif ((value >= 1000)); then printf -v TOKEN_TEXT '%d.%dk' $((value / 1000)) $(((value % 1000) / 100));
+  else TOKEN_TEXT=$value; fi
+}
+
+format_reset_countdown() {
+  local reset=${1:-} now diff d h m
+  RESET_TEXT=
+  [[ $reset =~ ^[0-9]+$ ]] || return 0
+  printf -v now '%(%s)T' -1 2>/dev/null || now=$(date +%s)
+  diff=$((reset - now)); ((diff <= 0)) && { RESET_TEXT=now; return; }
+  d=$((diff / 86400)); h=$(((diff % 86400) / 3600)); m=$(((diff % 3600) / 60))
+  if ((d)); then printf -v RESET_TEXT '%dd%02dh' "$d" "$h";
+  elif ((h)); then printf -v RESET_TEXT '%dh%02dm' "$h" "$m";
+  else printf -v RESET_TEXT '%dm' "$m"; fi
+}
+
+make_remaining_bar() {
+  local remaining=${1:-0} i filled
+  [[ $remaining =~ ^[0-9]+$ ]] || remaining=0
+  ((remaining < 0)) && remaining=0; ((remaining > 100)) && remaining=100
+  filled=$(((remaining * 5 + 50) / 100)); REMAINING_BAR=
+  for ((i = 0; i < 5; i++)); do
+    if ((i < filled)); then [ "$ASCII" = 1 ] && REMAINING_BAR+='#' || REMAINING_BAR+='▰';
+    else [ "$ASCII" = 1 ] && REMAINING_BAR+='-' || REMAINING_BAR+='▱'; fi
+  done
+}
+
+indirect_value() {
+  local variable=$1
+  INDIRECT_VALUE=${!variable-}
+}
+
 git_segments
 declare -a LABELS=() COLORS=()
 add_segment() { [ -n "${1:-}" ] && { LABELS+=("$1"); COLORS+=("$2"); }; }
@@ -149,6 +188,38 @@ for segment in $CC_SEGMENTS; do
       shorten_path "$CWD_VALUE" "$dir_limit"; COLOR=$C_DIR ;;
     project) SEG_LABEL=$SEG_PROJECT; [ -n "$SEG_LABEL" ] && { [ "$ASCII" = 1 ] && SEG_LABEL="repo $SEG_LABEL" || SEG_LABEL="⬢ $SEG_LABEL"; }; COLOR=$C_PROJECT ;;
     git) SEG_LABEL=$SEG_GIT; [ -n "$SEG_LABEL" ] && { [ "$ASCII" = 1 ] && SEG_LABEL="git $SEG_LABEL" || SEG_LABEL=" $SEG_LABEL"; }; if ((GIT_DIRTY)); then COLOR=$C_GIT_DIRTY; else COLOR=$C_GIT_OK; fi ;;
+    limits)
+      if [ "${CORALLINE_RATE_AVAILABLE:-0}" = 1 ]; then
+        for ((limit_index = 1; limit_index <= ${CORALLINE_LIMIT_COUNT:-0}; limit_index++)); do
+          indirect_value "CORALLINE_LIMIT${limit_index}_LABEL"; limit_label=$INDIRECT_VALUE
+          indirect_value "CORALLINE_LIMIT${limit_index}_USED"; limit_used=$INDIRECT_VALUE
+          indirect_value "CORALLINE_LIMIT${limit_index}_REMAINING"; limit_remaining=$INDIRECT_VALUE
+          indirect_value "CORALLINE_LIMIT${limit_index}_RESET"; limit_reset=$INDIRECT_VALUE
+          [ -n "$limit_remaining" ] || continue
+          make_remaining_bar "$limit_remaining"
+          format_reset_countdown "$limit_reset"
+          if [ "$ASCII" = 1 ]; then SEG_LABEL="$limit_label $REMAINING_BAR ${limit_remaining}% left";
+          else SEG_LABEL="$limit_label $REMAINING_BAR ${limit_remaining}%"; fi
+          [ -n "$RESET_TEXT" ] && SEG_LABEL+=" ↺$RESET_TEXT"
+          if ((limit_used >= 75)); then COLOR=$C_GIT_DIRTY;
+          elif ((limit_used >= 50)); then COLOR=$C_PROFILE;
+          else COLOR=$C_GIT_OK; fi
+          add_segment "$SEG_LABEL" "$COLOR"
+        done
+      fi
+      continue ;;
+    tokens)
+      SEG_LABEL=
+      if [ "${CORALLINE_SESSION_AVAILABLE:-0}" = 1 ]; then
+        format_token_count "${CORALLINE_SESSION_TOTAL:-}"; token_total=$TOKEN_TEXT
+        format_token_count "${CORALLINE_SESSION_INPUT:-}"; token_input=$TOKEN_TEXT
+        format_token_count "${CORALLINE_SESSION_OUTPUT:-}"; token_output=$TOKEN_TEXT
+        if [ -n "$token_total" ]; then
+          if [ "$ASCII" = 1 ]; then SEG_LABEL="tok $token_total in:$token_input out:$token_output";
+          else SEG_LABEL="Σ$token_total ↑$token_input ↓$token_output"; fi
+        fi
+      fi
+      COLOR=$C_MODEL ;;
     node) node_segment; COLOR=$C_NODE ;;
     python) python_segment; COLOR=$C_PYTHON ;;
     model) SEG_LABEL=${CORALLINE_MODEL:-}; [ -n "$SEG_LABEL" ] && SEG_LABEL="model $SEG_LABEL"; COLOR=$C_MODEL ;;

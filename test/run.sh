@@ -15,7 +15,8 @@ assert_absent() { [ ! -e "$1" ] && [ ! -L "$1" ] || fail "$2 ($1)"; }
 
 bash -n "$ROOT/bin/coralline-codex" "$ROOT/lib/render.sh" "$ROOT/configure.sh" \
   "$ROOT/install.sh" "$ROOT/test/verify-install.sh" "$0"
-python3 -m py_compile "$ROOT/lib/config.py" "$ROOT/tools/generate_themes.py"
+python3 -c 'import pathlib,sys; [compile(pathlib.Path(p).read_text(), p, "exec") for p in sys.argv[1:]]' \
+  "$ROOT/lib/config.py" "$ROOT/lib/usage.py" "$ROOT/tools/generate_themes.py"
 if command -v shellcheck >/dev/null 2>&1; then
   shellcheck "$ROOT/bin/coralline-codex" "$ROOT/lib/render.sh" "$ROOT/configure.sh" \
     "$ROOT/install.sh" "$ROOT/test/verify-install.sh"
@@ -77,6 +78,92 @@ assert_not_contains "$missing" 'node' 'missing Node hides segment'
 assert_not_contains "$missing" 'py ' 'missing Python hides segment'
 pass 'missing optional data degrades without fabricated values'
 
+usage_dir="$TEST_ROOT/usage cache"
+mkdir -p "$usage_dir"
+fake_codex="$usage_dir/fake codex"
+cat > "$fake_codex" <<'EOF'
+#!/usr/bin/env bash
+while IFS= read -r line; do
+  case $line in
+    *'"method":"initialize"'*) printf '%s\n' '{"id":1,"result":{"userAgent":"fake"}}' ;;
+    *'account/rateLimits/read'*) printf '%s\n' '{"id":2,"result":{"rateLimits":{"planType":"pro","primary":{"usedPercent":34,"windowDurationMins":10080,"resetsAt":2000000000},"secondary":null}}}' ;;
+    *'account/usage/read'*) printf '%s\n' '{"id":3,"result":{"summary":{"lifetimeTokens":123456789},"dailyUsageBuckets":[]}}' ;;
+  esac
+done
+EOF
+chmod 755 "$fake_codex"
+rate_cache="$usage_dir/rate limits.env"
+python3 "$ROOT/lib/usage.py" fetch --codex-bin "$fake_codex" --rate-cache "$rate_cache"
+rate_values=$(< "$rate_cache")
+assert_contains "$rate_values" 'CORALLINE_LIMIT1_LABEL=7d' 'weekly window classified from duration'
+assert_contains "$rate_values" 'CORALLINE_LIMIT1_REMAINING=66' 'remaining plan usage calculated'
+assert_contains "$rate_values" 'CORALLINE_LIFETIME_TOKENS=123456789' 'account token activity cached'
+pass 'official app-server rate-limit protocol and cache mapping'
+
+rollout="$usage_dir/rollout-test.jsonl"
+cat > "$rollout" <<'EOF'
+{"timestamp":"2026-07-20T12:00:00Z","type":"session_meta","payload":{"id":"test","cwd":"/tmp/project"}}
+{"timestamp":"2026-07-20T12:00:01Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":120000,"cached_input_tokens":80000,"output_tokens":3456,"total_tokens":123456},"last_token_usage":{"total_tokens":22000},"model_context_window":258400}}}
+EOF
+session_cache="$usage_dir/session tokens.env"
+python3 "$ROOT/lib/usage.py" extract --rollout "$rollout" --session-cache "$session_cache"
+pid_rollout=$(python3 - "$ROOT/lib/usage.py" "$rollout" <<'PY'
+import importlib.util
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+spec = importlib.util.spec_from_file_location("coralline_usage", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+holder = subprocess.Popen(
+    [sys.executable, "-c", "import sys,time; f=open(sys.argv[1]); time.sleep(10)", sys.argv[2]]
+)
+try:
+    time.sleep(0.2)
+    found = module.rollout_from_pid(os.getpid())
+    print(found or "")
+finally:
+    holder.terminate()
+    holder.wait()
+PY
+)
+[ "$pid_rollout" = "$rollout" ] || fail 'rollout discovery did not traverse the Codex launcher process tree'
+state="$usage_dir/state.env"
+printf 'CORALLINE_RATE_CACHE=%q\nCORALLINE_SESSION_CACHE=%q\n' "$rate_cache" "$session_cache" > "$state"
+usage_render=$(CC_ASCII=on CC_SEGMENTS='limits tokens' CORALLINE_CODEX_CONFIG=/dev/null \
+  "$ROOT/lib/render.sh" --plain --width 160 --cwd "$empty" --state "$state")
+assert_contains "$usage_render" '7d ###-- 66% left' 'plan limit renders in companion bar'
+assert_contains "$usage_render" 'tok 123.4k in:120.0k out:3.4k' 'session tokens render in companion bar'
+pass 'rollout discovery and cached usage segments render'
+
+priority_render=$(CC_ASCII=on CORALLINE_CODEX_CONFIG=/dev/null \
+  "$ROOT/lib/render.sh" --plain --width 80 --cwd "$repo" --state "$state")
+assert_contains "$priority_render" '7d ###-- 66% left' 'plan limit survives a narrow companion bar'
+assert_contains "$priority_render" 'tok 123.4k in:120.0k out:3.4k' 'session tokens survive a narrow companion bar'
+pass 'usage segments take priority when terminal width is constrained'
+
+watch_home="$usage_dir/watcher home"
+mkdir -p "$watch_home/sessions/2026/07/20"
+cp "$rollout" "$watch_home/sessions/2026/07/20/rollout-watcher.jsonl"
+watched_rate="$usage_dir/watched rate.env"
+watched_session="$usage_dir/watched session.env"
+python3 "$ROOT/lib/usage.py" watch --codex-bin "$fake_codex" --codex-home "$watch_home" \
+  --rate-cache "$watched_rate" --session-cache "$watched_session" \
+  --start-epoch 0 --cwd /tmp/project --pid $$ --interval 30 &
+watcher_pid=$!
+for _ in 1 2 3 4 5 6; do
+  if [ -f "$watched_session" ] && rg -q 'CORALLINE_SESSION_AVAILABLE=1' "$watched_session"; then break; fi
+  sleep 0.5
+done
+kill "$watcher_pid" >/dev/null 2>&1 || true
+wait "$watcher_pid" >/dev/null 2>&1 || true
+assert_contains "$(< "$watched_session")" 'CORALLINE_SESSION_TOTAL=123456' 'watcher discovers active rollout tokens'
+assert_contains "$(< "$watched_rate")" 'CORALLINE_LIMIT1_REMAINING=66' 'watcher refreshes account limits'
+pass 'background watcher combines account and active-session data'
+
 config_dir="$TEST_ROOT/config merge"
 mkdir -p "$config_dir/backups"
 config="$config_dir/custom config.conf"
@@ -113,6 +200,7 @@ EOF
 codex_config_hash=$(sha256sum "$codex_home/config.toml" | awk '{print $1}')
 CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" "$ROOT/install.sh" >/dev/null
 assert_file "$codex_home/coralline-codex/VERSION" 'fresh install runtime'
+assert_file "$codex_home/coralline-codex/lib/usage.py" 'fresh install usage watcher'
 [ -L "$bin_dir/coralline-codex" ] || fail 'fresh install command symlink'
 generated_count=$(find "$codex_home/themes" -name 'coralline-*.tmTheme' -type f | wc -l)
 ((generated_count == 9)) || fail "expected 9 generated themes, got $generated_count"
@@ -120,12 +208,18 @@ generated_count=$(find "$codex_home/themes" -name 'coralline-*.tmTheme' -type f 
 CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" "$bin_dir/coralline-codex" verify >/dev/null
 pass 'isolated fresh install and strict Codex verification'
 
+python3 "$codex_home/coralline-codex/lib/config.py" merge \
+  --config "$codex_home/coralline-codex.conf" --backup-dir "$codex_home/coralline-codex-backups" \
+  'CC_SEGMENTS=dir project git node python model profile elapsed clock' >/dev/null
 printf 'local marker\n' >> "$codex_home/coralline-codex/VERSION"
 CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" "$ROOT/install.sh" --update >/dev/null
 backup_install=$(find "$codex_home/coralline-codex-backups" -path '*/install/VERSION' -print -quit)
 assert_file "$backup_install" 'upgrade runtime backup'
 assert_contains "$(< "$backup_install")" 'local marker' 'upgrade retained exact old runtime'
 assert_not_contains "$(< "$codex_home/coralline-codex/VERSION")" 'local marker' 'upgrade installed new runtime'
+assert_contains "$(< "$codex_home/coralline-codex.conf")" \
+  'CC_SEGMENTS='\''limits tokens dir git project node python model profile elapsed clock'\''' \
+  'upgrade migrated the previous default segment order'
 [ "$codex_config_hash" = "$(sha256sum "$codex_home/config.toml" | awk '{print $1}')" ] || fail 'upgrade changed config.toml'
 pass 'upgrade replaces owned runtime and preserves Codex configuration'
 

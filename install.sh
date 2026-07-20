@@ -81,12 +81,12 @@ for file in VERSION LICENSE NOTICE.md README.md README.zh-TW.md install.sh confi
   [ -f "$SOURCE/$file" ] && cp -p -- "$SOURCE/$file" "$stage/"
 done
 cp -p -- "$SOURCE/bin/coralline-codex" "$stage/bin/"
-cp -p -- "$SOURCE/lib/config.py" "$SOURCE/lib/render.sh" "$stage/lib/"
+cp -p -- "$SOURCE/lib/config.py" "$SOURCE/lib/render.sh" "$SOURCE/lib/usage.py" "$stage/lib/"
 cp -p -- "$SOURCE/themes/palettes.tsv" "$stage/themes/"
 cp -p -- "$SOURCE/tools/generate_themes.py" "$stage/tools/"
 cp -p -- "$SOURCE/test/verify-install.sh" "$stage/test/"
 [ -d "$SOURCE/docs" ] && cp -p -- "$SOURCE/docs/"* "$stage/docs/" 2>/dev/null || true
-chmod 755 "$stage/bin/coralline-codex" "$stage/lib/render.sh" "$stage/lib/config.py" "$stage/tools/generate_themes.py" "$stage/install.sh" "$stage/configure.sh" "$stage/test/verify-install.sh"
+chmod 755 "$stage/bin/coralline-codex" "$stage/lib/render.sh" "$stage/lib/config.py" "$stage/lib/usage.py" "$stage/tools/generate_themes.py" "$stage/install.sh" "$stage/configure.sh" "$stage/test/verify-install.sh"
 python3 "$stage/tools/generate_themes.py" --palettes "$stage/themes/palettes.tsv" --output "$stage/themes/generated"
 
 if [ -d "$INSTALL_DIR" ]; then
@@ -106,8 +106,12 @@ done
 if [ ! -f "$CONFIG" ]; then
   python3 "$INSTALL_DIR/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUP_ROOT" \
     CC_THEME=claude-coral CC_STYLE=pill CC_ASCII=auto CC_NODE=off CC_PYTHON=off \
-    CC_RUNTIME_PROBE=off 'CC_SEGMENTS=dir project git node python model profile elapsed clock' \
-    CC_NATIVE_STATUS=on >/dev/null
+    CC_RUNTIME_PROBE=off 'CC_SEGMENTS=limits tokens dir git project node python model profile elapsed clock' \
+    CC_NATIVE_STATUS=on CC_USAGE_REFRESH=60 >/dev/null
+elif grep -Fxq "CC_SEGMENTS='dir project git node python model profile elapsed clock'" "$CONFIG"; then
+  python3 "$INSTALL_DIR/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUP_ROOT" \
+    'CC_SEGMENTS=limits tokens dir git project node python model profile elapsed clock' \
+    CC_USAGE_REFRESH=60 >/dev/null
 fi
 ln -sfn -- "$INSTALL_DIR/bin/coralline-codex" "$BIN"
 

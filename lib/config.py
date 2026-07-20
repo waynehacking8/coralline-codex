@@ -31,6 +31,7 @@ ALLOWED = {
     "CC_RUNTIME_PROBE",
     "CC_MAX_DIR",
     "CC_NATIVE_STATUS",
+    "CC_USAGE_REFRESH",
 }
 
 

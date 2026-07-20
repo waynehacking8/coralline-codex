@@ -2,8 +2,9 @@
 
 Coralline Codex is a Coralline-inspired status experience for the OpenAI Codex
 CLI. It combines Codex's documented native footer with an isolated tmux
-companion that keeps the Powerlevel10k-style rendering, themes, Git detail,
-elapsed time, clock, and optional Node/Python segments.
+companion that keeps the Powerlevel10k-style rendering, plan-limit tracking,
+session tokens, themes, Git detail, elapsed time, clock, and optional
+Node/Python segments.
 
 This is an independent Codex port of
 [Nanako0129/coralline](https://github.com/Nanako0129/coralline), not the
@@ -29,12 +30,14 @@ Coralline Codex therefore uses each interface only for what it reliably knows:
 | Surface | Reliable fields |
 |---|---|
 | Codex native footer | live model + effort, context remaining, 5-hour/weekly limits, session tokens |
-| isolated tmux companion | working directory, repository, detailed Git state, optional Node/Python, launch model/profile, elapsed time, clock |
+| isolated tmux companion | working directory, repository, detailed Git state, plan-limit remaining/reset, session input/output/total tokens, optional Node/Python, launch model/profile, elapsed time, clock |
 
 The companion starts a private tmux server and does not read or change your
-normal tmux configuration. If tmux is unavailable or the process is not
-interactive, the wrapper falls back to the themed native Codex footer. Rendering
-makes zero network requests.
+normal tmux configuration. A separate background watcher asks Codex's official
+app-server for account limits and watches the active local rollout for session
+tokens. It writes mode-0600 caches; the renderer only reads those caches and
+makes zero network requests. If tmux is unavailable or the process is not
+interactive, the wrapper falls back to the themed native Codex footer.
 
 ## Requirements
 
@@ -89,6 +92,12 @@ Preview every theme:
 coralline-codex preview
 ```
 
+Fetch the exact current plan snapshot and reset time on demand:
+
+```bash
+coralline-codex usage
+```
+
 ## Configure
 
 Run the interactive wizard:
@@ -103,6 +112,7 @@ Or make focused changes:
 coralline-codex configure --theme catppuccin-mocha --style pill
 coralline-codex configure --node on --python on --runtime-probe off
 coralline-codex configure --ascii on
+coralline-codex configure --usage-refresh 60
 coralline-codex configure --show
 ```
 
@@ -110,6 +120,11 @@ Node checks `.nvmrc` and `.node-version`; Python checks `VIRTUAL_ENV`, conda,
 and `.python-version`. `--runtime-probe on` additionally runs `node --version`
 or `python3 --version` when no pinned/environment value exists. Missing data
 hides only that segment.
+
+The default `limits` and `tokens` segments render compact values such as
+`7d ▰▰▰▰▱ 88% ↺6d21h` and `Σ10.4M ↑10.3M ↓70.5k`. Account limits refresh in a
+background process every 60 seconds by default (minimum 30 seconds). Rendering
+itself remains local and network-free.
 
 Themes: `claude-coral`, `catppuccin-mocha`, `dracula`, `gruvbox-dark`,
 `lunar-pink`, `mono`, `nord`, `reverie`, and `tokyo-night`.
@@ -156,17 +171,23 @@ The suite covers themed rendering, width constraints, clean/dirty/detached Git,
 missing optional data, configuration merge preservation, paths with spaces,
 fresh install, upgrade, and uninstall.
 
-## Data limitations
+## Usage data and limitations
 
-- The native footer is the source of truth for live context, tokens, model,
-  reasoning effort, and rate limits. The companion never invents these values.
+- Plan windows come from Codex's documented `account/rateLimits/read`
+  app-server method. Labels are classified by the returned window duration, so
+  a weekly-only account is shown correctly even when it is the primary window.
+- Session token totals come from the active rollout's `token_count` events.
+  Missing or not-yet-emitted events hide the segment instead of showing zero.
+- The native footer remains authoritative for live context-window percentage,
+  model, and reasoning effort.
 - The companion's model/profile describe launch-time resolution. If `/model`
   changes the model during a session, the native footer updates but the
   companion launch segment does not.
 - Codex exposes no supported custom renderer for native footer values or
   subagent rows. They therefore cannot receive Coralline pill backgrounds.
-- No network request occurs during rendering. `coralline-codex update` and Codex
-  itself can use the network for their own explicit work.
+- No network request occurs in `render.sh`. The separate usage watcher invokes
+  the authenticated Codex app-server at the configured refresh interval;
+  `coralline-codex update` and Codex itself can also use the network.
 
 ## License
 

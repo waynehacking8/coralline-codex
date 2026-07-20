@@ -20,6 +20,9 @@ Documented/verified surfaces:
   supported way to replace the footer.
 - Notifications report lifecycle events; plugins bundle Codex capabilities but
   do not add arbitrary TUI footer segment renderers.
+- The official app-server exposes `account/rateLimits/read`, with
+  `usedPercent`, `windowDurationMins`, and `resetsAt`, plus
+  `account/usage/read` for account token-activity summaries.
 
 There is no documented Codex equivalent of Claude Code's command-valued
 `statusLine` or `subagentStatusLine`. Patching the Codex binary was rejected.
@@ -55,15 +58,29 @@ on exit.
 |---|---|---|
 | native model/reasoning | Codex session | omitted by Codex |
 | native context/tokens/limits | Codex API/session state | omitted by Codex |
+| companion plan limits | official `account/rateLimits/read` snapshot | hidden; stale cache retained on transient refresh failure |
+| companion session tokens | active rollout `token_count` events | hidden until the first token event |
 | cwd/repository/Git | local filesystem and Git | repository/Git hidden outside a repo |
 | Node | pin file; optional local subprocess | hidden |
 | Python | environment/pin file; optional local subprocess | hidden |
 | companion model/profile | CLI arguments and layered TOML at launch | `auto`/`default` label |
 | elapsed/clock | local process clock | always available |
 
+The wrapper launches `lib/usage.py` as a separate background watcher. It uses
+the authenticated app-server for plan limits and reads only `token_count`
+events from the active local rollout for session totals. It atomically writes
+mode-0600 shell caches. `render.sh` sources those numeric caches and performs no
+network operation. The watcher is terminated with the isolated tmux server.
+
 The wrapper cannot observe a later in-session `/model` selection. The native
 footer remains authoritative and updates correctly; the companion explicitly
 represents launch-time resolution. No live values are fabricated.
+
+English-source precedents used during validation:
+
+- [Official Codex app-server protocol](https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md#auth-endpoints)
+- [`wakamex/codex-cli-usage`](https://github.com/wakamex/codex-cli-usage), which independently uses `account/rateLimits/read`
+- [A local-rollout `/status` extraction example](https://gist.github.com/ronaldpetty/46397107ca49d0f4bca4c85b1531d268)
 
 ## Files and configuration safety
 
