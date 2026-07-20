@@ -174,9 +174,19 @@ if [ "$SHELL_HOOK" = none ]; then
 elif [ "$SHELL_HOOK" != preserve ]; then
   real_codex=$(type -P codex || true)
   [ -n "$real_codex" ] || { printf 'install: could not resolve the real Codex binary for shell integration\n' >&2; exit 1; }
+  shell_rc_args=()
+  case $SHELL_HOOK in
+    bash) shell_rc_args=(--rc "$HOME/.bashrc") ;;
+    zsh) shell_rc_args=(--rc "$HOME/.zshrc") ;;
+    auto)
+      case ${SHELL##*/} in
+        bash) shell_rc_args=(--rc "$HOME/.bashrc") ;;
+        zsh) shell_rc_args=(--rc "$HOME/.zshrc") ;;
+      esac ;;
+  esac
   python3 "$INSTALL_DIR/lib/shell_integration.py" install \
     --codex-home "$CODEX_DIR" --backup-dir "$BACKUP_ROOT/shell" \
-    --shell "$SHELL_HOOK" --wrapper "$BIN" --codex-bin "$real_codex"
+    --shell "$SHELL_HOOK" "${shell_rc_args[@]}" --wrapper "$BIN" --codex-bin "$real_codex"
 fi
 
 printf 'Coralline Codex %s installed.\n' "$(< "$INSTALL_DIR/VERSION")"
