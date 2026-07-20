@@ -24,6 +24,7 @@ $Wrapper = Join-Path $InstallDir 'bin\coralline-codex.ps1'
 $CommandShim = Join-Path $BinDir 'coralline-codex.cmd'
 $StartMarker = '# >>> coralline-codex managed PowerShell integration >>>'
 $EndMarker = '# <<< coralline-codex managed PowerShell integration <<<'
+$PreviousVersion = if (Test-Path -LiteralPath (Join-Path $InstallDir 'VERSION')) { (Get-Content -LiteralPath (Join-Path $InstallDir 'VERSION') -Raw).Trim() } else { '' }
 
 function Backup-File([string]$Path, [string]$Bucket) {
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
@@ -90,7 +91,7 @@ New-Item -ItemType Directory -Force -Path $CodexHome, $BinDir, $ThemeDir | Out-N
 $Stage = Join-Path $CodexHome ('.coralline-codex-stage.' + [guid]::NewGuid().ToString('N'))
 try {
     New-Item -ItemType Directory -Force -Path $Stage | Out-Null
-    foreach ($file in @('VERSION', 'LICENSE', 'NOTICE.md', 'README.md', 'README.zh-TW.md', 'install.sh', 'install.ps1', 'configure.sh', 'configure.ps1')) {
+    foreach ($file in @('VERSION', 'CHANGELOG.md', 'LICENSE', 'NOTICE.md', 'README.md', 'README.zh-TW.md', 'install.sh', 'install.ps1', 'configure.sh', 'configure.ps1')) {
         if (Test-Path -LiteralPath (Join-Path $Source $file)) { Copy-Item -LiteralPath (Join-Path $Source $file) -Destination $Stage }
     }
     foreach ($directory in @('bin', 'lib', 'themes', 'tools', 'test', 'docs')) {
@@ -151,8 +152,19 @@ $EndMarker
     Write-Output "Managed PowerShell hook installed in $ProfilePath"
 }
 
-Write-Output "Coralline Codex $((Get-Content -LiteralPath (Join-Path $InstallDir 'VERSION') -Raw).Trim()) installed."
+$CurrentVersion = (Get-Content -LiteralPath (Join-Path $InstallDir 'VERSION') -Raw).Trim()
+Write-Output "Coralline Codex $CurrentVersion installed."
 Write-Output "  command: $CommandShim"
 Write-Output "  runtime: $InstallDir"
 Write-Output "  config:  $Config"
 Write-Output '  Codex config.toml: unchanged'
+if ($PreviousVersion -and $PreviousVersion -ne $CurrentVersion) {
+    Write-Output ''
+    Write-Output "Updated $PreviousVersion -> $CurrentVersion. New in this release:"
+    $show = $false
+    foreach ($line in Get-Content -LiteralPath (Join-Path $InstallDir 'CHANGELOG.md')) {
+        if ($line.StartsWith("## $CurrentVersion ")) { $show = $true; continue }
+        if ($show -and $line.StartsWith('## ')) { break }
+        if ($show -and $line.StartsWith('- ')) { Write-Output "  $line" }
+    }
+}

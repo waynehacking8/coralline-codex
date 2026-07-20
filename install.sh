@@ -42,6 +42,8 @@ CONFIG=$CODEX_DIR/coralline-codex.conf
 THEME_DIR=$CODEX_DIR/themes
 BACKUP_ROOT=$CODEX_DIR/coralline-codex-backups
 BIN=$BIN_DIR/coralline-codex
+previous_version=
+[ -f "$INSTALL_DIR/VERSION" ] && IFS= read -r previous_version < "$INSTALL_DIR/VERSION"
 stamp=$(date +%Y%m%d-%H%M%S)
 BACKUP_DIR=$BACKUP_ROOT/$stamp
 counter=1
@@ -93,7 +95,7 @@ stage=$(mktemp -d "$CODEX_DIR/.coralline-codex-stage.XXXXXX")
 cleanup() { if [ -n "$stage" ] && [ -d "$stage" ]; then rm -rf -- "$stage"; fi; }
 trap cleanup EXIT
 mkdir -p "$stage/bin" "$stage/lib" "$stage/themes" "$stage/tools" "$stage/test" "$stage/docs"
-for file in VERSION LICENSE NOTICE.md README.md README.zh-TW.md install.sh install.ps1 configure.sh configure.ps1; do
+for file in VERSION CHANGELOG.md LICENSE NOTICE.md README.md README.zh-TW.md install.sh install.ps1 configure.sh configure.ps1; do
   [ -f "$SOURCE/$file" ] && cp -p -- "$SOURCE/$file" "$stage/"
 done
 cp -p -- "$SOURCE/bin/coralline-codex" "$stage/bin/"
@@ -146,6 +148,15 @@ printf 'Coralline Codex %s installed.\n' "$(< "$INSTALL_DIR/VERSION")"
 printf '  command: %s\n  runtime: %s\n  config:  %s\n' "$BIN" "$INSTALL_DIR" "$CONFIG"
 if [ -d "$BACKUP_DIR" ]; then printf '  backup:  %s\n' "$BACKUP_DIR"; else printf '  backup:  none (no existing files were replaced)\n'; fi
 printf '  Codex config.toml: unchanged (native settings are scoped CLI overrides)\n'
+current_version=$(< "$INSTALL_DIR/VERSION")
+if [ -n "$previous_version" ] && [ "$previous_version" != "$current_version" ]; then
+  printf '\nUpdated %s -> %s. New in this release:\n' "$previous_version" "$current_version"
+  awk -v wanted="$current_version" '
+    index($0, "## " wanted " ") == 1 { show=1; next }
+    show && /^## / { exit }
+    show && /^- / { print "  " $0 }
+  ' "$INSTALL_DIR/CHANGELOG.md"
+fi
 if ! command -v tmux >/dev/null 2>&1; then
   printf '  note: tmux is absent; the themed native Codex footer works, but the companion bar will fall back to one-shot rendering.\n'
 fi

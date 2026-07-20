@@ -43,7 +43,7 @@ segments_valid() {
   local item
   for item in $1; do
     case $item in
-      limits | tokens | dir | project | git | node | python | model | profile | elapsed | clock) ;;
+      limits | burn | tokens | dir | project | git | node | python | model | profile | elapsed | clock) ;;
       *) printf 'unknown segment: %s\n' "$item" >&2; return 1 ;;
     esac
   done
@@ -56,6 +56,7 @@ render_preview() {
     CC_NODE=off CC_PYTHON=off CORALLINE_RATE_AVAILABLE=1 CORALLINE_LIMIT_COUNT=1 \
     CORALLINE_LIMIT1_LABEL=7d CORALLINE_LIMIT1_USED=15 CORALLINE_LIMIT1_REMAINING=85 \
     CORALLINE_LIMIT1_RESET=$((now + 597600)) CORALLINE_RATE_UPDATED=$now \
+    CORALLINE_LIMIT1_BURN_STATE=tracking CORALLINE_LIMIT1_BURN_ETA=302400 \
     CORALLINE_SESSION_AVAILABLE=1 CORALLINE_SESSION_TOTAL=12463 \
     CORALLINE_SESSION_INPUT=12456 CORALLINE_SESSION_OUTPUT=7 \
     CORALLINE_MODEL=gpt-5.6-codex CORALLINE_PROFILE=work CORALLINE_START_EPOCH=$((now - 754)) \
@@ -128,13 +129,13 @@ visual_wizard() {
 
   printf '\nSegment layouts:\n'
   printf '  1) Focused — quota, tokens, directory, Git, elapsed, clock\n'
-  printf '  2) Full    — focused plus project, runtimes, model, and profile\n'
+  printf '  2) Full    — focused plus usage projection, project, runtimes, model, and profile\n'
   printf '  3) Minimal — quota, tokens, directory\n'
   printf '  4) Keep current custom order\n'
   printf 'Layout [4]: '; IFS= read -r choice
   case $choice in
     1) WIZARD_SEGMENTS='limits tokens dir git elapsed clock' ;;
-    2) WIZARD_SEGMENTS='limits tokens dir git project node python model profile elapsed clock' ;;
+    2) WIZARD_SEGMENTS='limits burn tokens dir git project node python model profile elapsed clock' ;;
     3) WIZARD_SEGMENTS='limits tokens dir' ;;
   esac
   if [[ " $WIZARD_SEGMENTS " == *' node '* ]]; then

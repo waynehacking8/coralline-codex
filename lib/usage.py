@@ -8,6 +8,7 @@ app-server. The renderer only sources small, mode-0600 cache files.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 from datetime import datetime
 import json
 import os
@@ -38,6 +39,48 @@ def atomic_env(path: Path, values: dict[str, Any]) -> None:
     temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
     os.chmod(temporary, 0o600)
     os.replace(temporary, path)
+
+
+def atomic_json(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(path.parent, 0o700)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(value, separators=(",", ":")) + "\n", encoding="utf-8")
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, path)
+
+
+@contextmanager
+def directory_lock(path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(path.parent, 0o700)
+    lock = path.with_name(f".{path.name}.lock")
+    deadline = time.monotonic() + 3
+    while True:
+        try:
+            lock.mkdir(mode=0o700)
+            break
+        except FileExistsError:
+            try:
+                stale = lock.stat().st_mtime < time.time() - 30
+            except OSError:
+                stale = False
+            if stale:
+                try:
+                    lock.rmdir()
+                except OSError:
+                    pass
+                continue
+            if time.monotonic() >= deadline:
+                raise TimeoutError("usage-history lock timed out")
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        try:
+            lock.rmdir()
+        except OSError:
+            pass
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -195,9 +238,93 @@ def rate_env(rate_result: dict, usage_result: dict) -> dict[str, Any]:
     return values
 
 
-def refresh_rate_cache(codex_bin: str, cache: Path) -> dict[str, Any]:
+def read_history(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"version": 1, "windows": {}}
+    if not isinstance(value, dict) or not isinstance(value.get("windows"), dict):
+        return {"version": 1, "windows": {}}
+    return value
+
+
+def apply_burn_metrics(values: dict[str, Any], history_path: Path, now: int | None = None) -> None:
+    """Record rate-limit samples and add conservative range-to-empty metrics."""
+    current_time = int(time.time()) if now is None else int(now)
+    with directory_lock(history_path):
+        history = read_history(history_path)
+        windows = history["windows"]
+        active_keys: set[str] = set()
+        count = int(values.get("CORALLINE_LIMIT_COUNT") or 0)
+        for index in range(1, count + 1):
+            prefix = f"CORALLINE_LIMIT{index}_"
+            used = values.get(prefix + "USED")
+            reset = values.get(prefix + "RESET")
+            minutes = values.get(prefix + "WINDOW_MINS")
+            if not isinstance(used, (int, float)) or not isinstance(reset, (int, float)):
+                continue
+            if not isinstance(minutes, (int, float)) or reset <= current_time:
+                continue
+            key = f"{int(minutes)}:{int(reset)}"
+            active_keys.add(key)
+            raw_samples = windows.get(key)
+            samples: list[list[float]] = []
+            if isinstance(raw_samples, list):
+                for sample in raw_samples:
+                    if (
+                        isinstance(sample, list)
+                        and len(sample) == 2
+                        and isinstance(sample[0], (int, float))
+                        and isinstance(sample[1], (int, float))
+                        and current_time - 14 * 86400 <= sample[0] <= current_time
+                    ):
+                        samples.append([float(sample[0]), float(sample[1])])
+            samples.sort(key=lambda sample: sample[0])
+            if samples and samples[-1][0] == current_time:
+                samples[-1][1] = max(samples[-1][1], float(used))
+            else:
+                samples.append([float(current_time), float(used)])
+            samples = samples[-512:]
+            windows[key] = samples
+
+            window_seconds = int(minutes * 60)
+            lookback = min(max(window_seconds // 2, 1800), 86400)
+            eligible = [
+                sample for sample in samples
+                if current_time - lookback <= sample[0] <= current_time - 300 and sample[1] <= float(used)
+            ]
+            state = "warming"
+            eta = ""
+            rate_per_hour = ""
+            if eligible:
+                baseline = eligible[0]
+                elapsed = current_time - baseline[0]
+                consumed = float(used) - baseline[1]
+                if elapsed >= 300 and consumed > 0:
+                    rate_per_second = consumed / elapsed
+                    eta = max(0, round((100 - float(used)) / rate_per_second))
+                    rate_per_hour = round(rate_per_second * 3600, 3)
+                    state = "safe" if eta >= int(reset) - current_time else "tracking"
+                elif elapsed >= 900:
+                    state = "idle"
+            values[prefix + "BURN_STATE"] = state
+            values[prefix + "BURN_ETA"] = eta
+            values[prefix + "BURN_RATE_PER_HOUR"] = rate_per_hour
+
+        for key in list(windows):
+            samples = windows.get(key)
+            newest = samples[-1][0] if isinstance(samples, list) and samples else 0
+            if key not in active_keys and newest < current_time - 14 * 86400:
+                del windows[key]
+        history["updated"] = current_time
+        atomic_json(history_path, history)
+
+
+def refresh_rate_cache(codex_bin: str, cache: Path, history: Path | None = None) -> dict[str, Any]:
     rate_result, usage_result = fetch_account(codex_bin)
     values = rate_env(rate_result, usage_result)
+    if history is not None:
+        apply_burn_metrics(values, history)
     atomic_env(cache, values)
     return values
 
@@ -376,7 +503,7 @@ def watch(args: argparse.Namespace) -> int:
         now = time.monotonic()
         if now - last_rate >= args.interval:
             try:
-                refresh_rate_cache(args.codex_bin, args.rate_cache)
+                refresh_rate_cache(args.codex_bin, args.rate_cache, args.history)
             except Exception as error:
                 record_rate_failure(args.rate_cache, error)
             last_rate = now
@@ -408,8 +535,23 @@ def format_tokens(value: Any) -> str:
     return str(number)
 
 
-def status(codex_bin: str, cache: Path) -> int:
-    values = refresh_rate_cache(codex_bin, cache)
+def format_duration(value: Any) -> str:
+    try:
+        seconds = max(0, int(value))
+    except (TypeError, ValueError):
+        return ""
+    days, remainder = divmod(seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes = remainder // 60
+    if days:
+        return f"{days}d {hours}h"
+    if hours:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
+
+
+def status(codex_bin: str, cache: Path, history: Path | None = None) -> int:
+    values = refresh_rate_cache(codex_bin, cache, history)
     plan = values.get("CORALLINE_PLAN") or "unknown"
     print(f"Plan: {plan}")
     count = int(values.get("CORALLINE_LIMIT_COUNT") or 0)
@@ -419,10 +561,21 @@ def status(codex_bin: str, cache: Path) -> int:
         reset_text = ""
         if reset:
             reset_text = datetime.fromtimestamp(int(reset)).astimezone().strftime("%Y-%m-%d %H:%M %Z")
-        print(
+        line = (
             f"{values[prefix + 'LABEL']}: {values[prefix + 'REMAINING']}% remaining"
             + (f"; resets {reset_text}" if reset_text else "")
         )
+        burn_state = values.get(prefix + "BURN_STATE")
+        burn_eta = format_duration(values.get(prefix + "BURN_ETA"))
+        if burn_state == "tracking" and burn_eta:
+            line += f"; projected exhaustion in {burn_eta}"
+        elif burn_state == "safe":
+            line += "; projected to last through reset"
+        elif burn_state == "idle":
+            line += "; no measurable recent burn"
+        elif burn_state == "warming":
+            line += "; projection warming up"
+        print(line)
     lifetime = values.get("CORALLINE_LIFETIME_TOKENS")
     if lifetime:
         print(f"Account token activity: {format_tokens(lifetime)} lifetime")
@@ -435,9 +588,11 @@ def main() -> int:
     fetch = sub.add_parser("fetch")
     fetch.add_argument("--codex-bin", required=True)
     fetch.add_argument("--rate-cache", required=True, type=Path)
+    fetch.add_argument("--history", type=Path)
     show = sub.add_parser("status")
     show.add_argument("--codex-bin", required=True)
     show.add_argument("--rate-cache", required=True, type=Path)
+    show.add_argument("--history", type=Path)
     extract = sub.add_parser("extract")
     extract.add_argument("--rollout", required=True, type=Path)
     extract.add_argument("--session-cache", required=True, type=Path)
@@ -445,6 +600,7 @@ def main() -> int:
     watcher.add_argument("--codex-bin", required=True)
     watcher.add_argument("--codex-home", required=True, type=Path)
     watcher.add_argument("--rate-cache", required=True, type=Path)
+    watcher.add_argument("--history", type=Path)
     watcher.add_argument("--session-cache", required=True, type=Path)
     watcher.add_argument("--start-epoch", required=True, type=float)
     watcher.add_argument("--cwd", required=True)
@@ -452,10 +608,10 @@ def main() -> int:
     watcher.add_argument("--interval", type=int, default=60)
     args = parser.parse_args()
     if args.command == "fetch":
-        refresh_rate_cache(args.codex_bin, args.rate_cache)
+        refresh_rate_cache(args.codex_bin, args.rate_cache, args.history)
         return 0
     if args.command == "status":
-        return status(args.codex_bin, args.rate_cache)
+        return status(args.codex_bin, args.rate_cache, args.history)
     if args.command == "extract":
         atomic_env(args.session_cache, extract_rollout(args.rollout))
         return 0

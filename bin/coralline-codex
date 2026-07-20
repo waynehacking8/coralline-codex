@@ -132,7 +132,8 @@ run_codex() {
   if [[ $pane_pid =~ ^[1-9][0-9]*$ ]]; then
     python3 "$ROOT/lib/usage.py" watch \
       --codex-bin "$CODEX_BIN" --codex-home "$CODEX_DIR" \
-      --rate-cache "$rate_cache" --session-cache "$session_cache" \
+      --rate-cache "$rate_cache" --history "$CODEX_DIR/coralline-codex-cache/usage-history.json" \
+      --session-cache "$session_cache" \
       --start-epoch "$start" --cwd "$PWD" --pid "$pane_pid" \
       --interval "$usage_refresh" >"$temp/usage.log" 2>&1 &
     CORALLINE_CLEANUP_USAGE_PID=$!
@@ -155,7 +156,8 @@ case $subcommand in
   usage)
     shift
     exec python3 "$ROOT/lib/usage.py" status --codex-bin "$CODEX_BIN" \
-      --rate-cache "$CODEX_DIR/coralline-codex-cache/rate.env" "$@" ;;
+      --rate-cache "$CODEX_DIR/coralline-codex-cache/rate.env" \
+      --history "$CODEX_DIR/coralline-codex-cache/usage-history.json" "$@" ;;
   shell)
     shift
     shell_action=${1:-status}
@@ -177,6 +179,7 @@ case $subcommand in
         CORALLINE_RATE_AVAILABLE=1 CORALLINE_LIMIT_COUNT=1 \
         CORALLINE_LIMIT1_LABEL=7d CORALLINE_LIMIT1_USED=15 CORALLINE_LIMIT1_REMAINING=85 \
         CORALLINE_LIMIT1_RESET=$((preview_now + 597600)) CORALLINE_RATE_UPDATED=$preview_now \
+        CORALLINE_LIMIT1_BURN_STATE=tracking CORALLINE_LIMIT1_BURN_ETA=302400 \
         CORALLINE_SESSION_AVAILABLE=1 CORALLINE_SESSION_TOTAL=12463 \
         CORALLINE_SESSION_INPUT=12456 CORALLINE_SESSION_OUTPUT=7 \
         CORALLINE_MODEL=gpt-5.6-codex CORALLINE_START_EPOCH=$((preview_now - 754)) \

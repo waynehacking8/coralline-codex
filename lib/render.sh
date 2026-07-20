@@ -168,6 +168,16 @@ format_reset_countdown() {
   else printf -v RESET_TEXT '%dm' "$m"; fi
 }
 
+format_duration_seconds() {
+  local seconds=${1:-} d h m
+  DURATION_TEXT=
+  [[ $seconds =~ ^[0-9]+$ ]] || return 0
+  d=$((seconds / 86400)); h=$(((seconds % 86400) / 3600)); m=$(((seconds % 3600) / 60))
+  if ((d)); then printf -v DURATION_TEXT '%dd%02dh' "$d" "$h";
+  elif ((h)); then printf -v DURATION_TEXT '%dh%02dm' "$h" "$m";
+  else printf -v DURATION_TEXT '%dm' "$m"; fi
+}
+
 make_remaining_bar() {
   local remaining=${1:-0} i filled
   [[ $remaining =~ ^[0-9]+$ ]] || remaining=0
@@ -215,9 +225,16 @@ for segment in $CC_SEGMENTS; do
           [ -n "$limit_remaining" ] || continue
           make_remaining_bar "$limit_remaining"
           format_reset_countdown "$limit_reset"
-          if [ "$ASCII" = 1 ]; then SEG_LABEL="$limit_label $REMAINING_BAR ${limit_remaining}% left";
-          else SEG_LABEL="$limit_label $REMAINING_BAR ${limit_remaining}%"; fi
-          [ -n "$RESET_TEXT" ] && SEG_LABEL+=" ↺$RESET_TEXT"
+          if ((WIDTH < 45)); then
+            SEG_LABEL="$limit_label ${limit_remaining}%"
+          elif ((WIDTH < 80)); then
+            SEG_LABEL="$limit_label ${limit_remaining}%"
+            [ -n "$RESET_TEXT" ] && SEG_LABEL+=" ↺$RESET_TEXT"
+          else
+            if [ "$ASCII" = 1 ]; then SEG_LABEL="$limit_label $REMAINING_BAR ${limit_remaining}% left";
+            else SEG_LABEL="$limit_label $REMAINING_BAR ${limit_remaining}%"; fi
+            [ -n "$RESET_TEXT" ] && SEG_LABEL+=" ↺$RESET_TEXT"
+          fi
           if ((rate_stale)); then
             if ((rate_age >= 3600)); then rate_stale_text="$((rate_age / 3600))h";
             elif ((rate_age >= 60)); then rate_stale_text="$((rate_age / 60))m";
@@ -239,11 +256,51 @@ for segment in $CC_SEGMENTS; do
         format_token_count "${CORALLINE_SESSION_INPUT:-}"; token_input=$TOKEN_TEXT
         format_token_count "${CORALLINE_SESSION_OUTPUT:-}"; token_output=$TOKEN_TEXT
         if [ -n "$token_total" ]; then
-          if [ "$ASCII" = 1 ]; then SEG_LABEL="tok $token_total in:$token_input out:$token_output";
+          if ((WIDTH < 80)); then
+            if [ "$ASCII" = 1 ]; then SEG_LABEL="tok $token_total"; else SEG_LABEL="Σ$token_total"; fi
+          elif [ "$ASCII" = 1 ]; then SEG_LABEL="tok $token_total in:$token_input out:$token_output";
           else SEG_LABEL="Σ$token_total ↑$token_input ↓$token_output"; fi
         fi
       fi
       COLOR=$C_MODEL ;;
+    burn)
+      if [ "${CORALLINE_RATE_AVAILABLE:-0}" = 1 ]; then
+        for ((limit_index = 1; limit_index <= ${CORALLINE_LIMIT_COUNT:-0}; limit_index++)); do
+          indirect_value "CORALLINE_LIMIT${limit_index}_LABEL"; burn_label=$INDIRECT_VALUE
+          indirect_value "CORALLINE_LIMIT${limit_index}_BURN_STATE"; burn_state=$INDIRECT_VALUE
+          indirect_value "CORALLINE_LIMIT${limit_index}_BURN_ETA"; burn_eta=$INDIRECT_VALUE
+          case $burn_state in
+            tracking)
+              format_duration_seconds "$burn_eta"
+              [ -n "$DURATION_TEXT" ] || continue
+              if [ "$ASCII" = 1 ]; then SEG_LABEL="burn $burn_label $DURATION_TEXT";
+              else SEG_LABEL="↗$burn_label $DURATION_TEXT"; fi
+              COLOR=$C_PROFILE ;;
+            safe)
+              if [ "$ASCII" = 1 ]; then SEG_LABEL="burn $burn_label reset-safe";
+              else SEG_LABEL="✓$burn_label reset-safe"; fi
+              COLOR=$C_GIT_OK ;;
+            idle)
+              if [ "$ASCII" = 1 ]; then SEG_LABEL="burn $burn_label idle";
+              else SEG_LABEL="✓$burn_label idle"; fi
+              COLOR=$C_GIT_OK ;;
+            warming)
+              if [ "$ASCII" = 1 ]; then SEG_LABEL="burn $burn_label warming";
+              else SEG_LABEL="↗$burn_label warm"; fi
+              COLOR=$C_DIM ;;
+            *) continue ;;
+          esac
+          if ((WIDTH < 45)); then
+            case $burn_state in
+              tracking) SEG_LABEL="↗$burn_label $DURATION_TEXT" ;;
+              safe | idle) SEG_LABEL="✓$burn_label" ;;
+              warming) SEG_LABEL="…$burn_label" ;;
+            esac
+          fi
+          add_segment "$SEG_LABEL" "$COLOR"
+        done
+      fi
+      continue ;;
     node) node_segment; COLOR=$C_NODE ;;
     python) python_segment; COLOR=$C_PYTHON ;;
     model) SEG_LABEL=${CORALLINE_MODEL:-}; [ -n "$SEG_LABEL" ] && SEG_LABEL="model $SEG_LABEL"; COLOR=$C_MODEL ;;

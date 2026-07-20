@@ -54,7 +54,8 @@ switch ($Command) {
     'usage' {
         $pythonArgs = @(
             (Join-Path $Root 'lib\usage.py'), 'status', '--codex-bin', $CodexBin,
-            '--rate-cache', (Join-Path $CodexHome 'coralline-codex-cache\rate.env')
+            '--rate-cache', (Join-Path $CodexHome 'coralline-codex-cache\rate.env'),
+            '--history', (Join-Path $CodexHome 'coralline-codex-cache\usage-history.json')
         )
         Invoke-Python $pythonArgs
         exit $LASTEXITCODE

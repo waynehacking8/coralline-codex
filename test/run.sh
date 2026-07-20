@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+ROOT=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 TEST_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/coralline-codex-tests.XXXXXX")
 trap 'rm -rf -- "$TEST_ROOT"' EXIT
 passes=0
@@ -240,11 +240,70 @@ stale_render=$(CC_ASCII=on CC_USAGE_STALE_AFTER=60 CC_SEGMENTS='limits' \
 assert_contains "$stale_render" 'stale:' 'stale plan snapshot is visibly marked'
 pass 'refresh failures preserve data and stale snapshots remain honest'
 
+burn_history="$usage_dir/usage history.json"
+burn_cache="$usage_dir/burn rate.env"
+python3 - "$ROOT/lib/usage.py" "$burn_history" "$burn_cache" <<'PY'
+import importlib.util
+import json
+import os
+from pathlib import Path
+import stat
+import sys
+
+spec = importlib.util.spec_from_file_location("coralline_usage", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+history = Path(sys.argv[2])
+cache = Path(sys.argv[3])
+values = {
+    "CORALLINE_RATE_AVAILABLE": 1,
+    "CORALLINE_LIMIT_COUNT": 2,
+    "CORALLINE_LIMIT1_LABEL": "7d",
+    "CORALLINE_LIMIT1_USED": 10,
+    "CORALLINE_LIMIT1_REMAINING": 90,
+    "CORALLINE_LIMIT1_RESET": 200000,
+    "CORALLINE_LIMIT1_WINDOW_MINS": 10080,
+    "CORALLINE_LIMIT2_LABEL": "5h",
+    "CORALLINE_LIMIT2_USED": 10,
+    "CORALLINE_LIMIT2_REMAINING": 90,
+    "CORALLINE_LIMIT2_RESET": 10000,
+    "CORALLINE_LIMIT2_WINDOW_MINS": 300,
+}
+module.apply_burn_metrics(values, history, now=1000)
+assert values["CORALLINE_LIMIT1_BURN_STATE"] == "warming"
+values["CORALLINE_LIMIT1_USED"] = 20
+values["CORALLINE_LIMIT1_REMAINING"] = 80
+values["CORALLINE_LIMIT2_USED"] = 11
+values["CORALLINE_LIMIT2_REMAINING"] = 89
+module.apply_burn_metrics(values, history, now=4600)
+assert values["CORALLINE_LIMIT1_BURN_STATE"] == "tracking"
+assert values["CORALLINE_LIMIT1_BURN_ETA"] == 28800
+assert values["CORALLINE_LIMIT1_BURN_RATE_PER_HOUR"] == 10
+assert values["CORALLINE_LIMIT2_BURN_STATE"] == "safe"
+assert not history.with_name(f".{history.name}.lock").exists()
+assert stat.S_IMODE(history.stat().st_mode) == 0o600
+assert len(json.loads(history.read_text())["windows"]) == 2
+module.atomic_env(cache, values)
+PY
+burn_render=$(CC_ASCII=on CC_SEGMENTS='burn' CORALLINE_RATE_CACHE="$burn_cache" \
+  CORALLINE_CODEX_CONFIG=/dev/null "$ROOT/lib/render.sh" --plain --width 120 --cwd "$empty")
+assert_contains "$burn_render" 'burn 7d 8h00m' 'projection shows time to exhaustion when current burn outruns reset'
+assert_contains "$burn_render" 'burn 5h reset-safe' 'projection distinguishes usage likely to survive reset'
+pass 'burn-rate history produces conservative, deterministic quota projections'
+
 priority_render=$(CC_ASCII=on CORALLINE_CODEX_CONFIG=/dev/null \
   "$ROOT/lib/render.sh" --plain --width 80 --cwd "$repo" --state "$state")
 assert_contains "$priority_render" '7d ###-- 66% left' 'plan limit survives a narrow companion bar'
 assert_contains "$priority_render" 'tok 123.4k in:120.0k out:3.4k' 'session tokens survive a narrow companion bar'
 pass 'usage segments take priority when terminal width is constrained'
+
+compact_render=$(CC_ASCII=on CORALLINE_CODEX_CONFIG=/dev/null \
+  "$ROOT/lib/render.sh" --plain --width 30 --cwd "$repo" --state "$state")
+assert_contains "$compact_render" '7d 66%' 'quota compacts instead of disappearing at 30 columns'
+assert_contains "$compact_render" 'tok 123.4k' 'session tokens compact instead of disappearing at 30 columns'
+compact_width=$(python3 -c 'import sys; print(len(sys.stdin.read().rstrip("\n")))' <<< "$compact_render")
+((compact_width <= 30)) || fail "compact usage exceeded width: $compact_width"
+pass 'critical usage data adapts down to a 30-column terminal'
 
 watch_home="$usage_dir/watcher home"
 mkdir -p "$watch_home/sessions/2026/07/20"
@@ -383,12 +442,14 @@ pass 'isolated fresh install and strict Codex verification'
 python3 "$codex_home/coralline-codex/lib/config.py" merge \
   --config "$codex_home/coralline-codex.conf" --backup-dir "$codex_home/coralline-codex-backups" \
   'CC_SEGMENTS=dir project git node python model profile elapsed clock' >/dev/null
-printf 'local marker\n' >> "$codex_home/coralline-codex/VERSION"
-CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" "$ROOT/install.sh" --update >/dev/null
+printf '0.1.0\nlocal marker\n' > "$codex_home/coralline-codex/VERSION"
+upgrade_output=$(CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" "$ROOT/install.sh" --update)
 backup_install=$(find "$codex_home/coralline-codex-backups" -path '*/install/VERSION' -print | sed -n '1p')
 assert_file "$backup_install" 'upgrade runtime backup'
 assert_contains "$(< "$backup_install")" 'local marker' 'upgrade retained exact old runtime'
 assert_not_contains "$(< "$codex_home/coralline-codex/VERSION")" 'local marker' 'upgrade installed new runtime'
+assert_contains "$upgrade_output" 'Updated 0.1.0 -> 0.1.1' 'upgrade reports the version transition'
+assert_contains "$upgrade_output" 'New in this release:' 'upgrade prints release highlights'
 assert_contains "$(< "$codex_home/coralline-codex.conf")" \
   'CC_SEGMENTS='\''limits tokens dir git project node python model profile elapsed clock'\''' \
   'upgrade migrated the previous default segment order'

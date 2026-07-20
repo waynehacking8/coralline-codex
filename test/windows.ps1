@@ -91,8 +91,10 @@ else:
     & $Wrapper verify | Out-Null
     Pass 'Windows configuration and verification commands work'
 
-    & (Join-Path $Root 'install.ps1') -CodexHome $CodexHome -BinDir $BinDir -CodexBin $FakeCodex -Update | Out-Null
+    Set-Content -LiteralPath (Join-Path $CodexHome 'coralline-codex\VERSION') -Value '0.1.0' -Encoding ASCII
+    $UpdateOutput = (& (Join-Path $Root 'install.ps1') -CodexHome $CodexHome -BinDir $BinDir -CodexBin $FakeCodex -Update | Out-String)
     Assert-Contains (Get-Content -LiteralPath $ProfilePath -Raw) 'coralline-codex managed PowerShell integration' 'update removed shell hook'
+    Assert-Contains $UpdateOutput 'Updated 0.1.0 -> 0.1.1' 'Windows update did not report the version transition'
     Assert-True ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $CodexHome 'config.toml')).Hash -eq $ConfigHash) 'update changed config.toml'
     Pass 'Windows update preserves shell integration and Codex configuration'
 
