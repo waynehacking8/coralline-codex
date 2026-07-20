@@ -1,0 +1,65 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux / Bash companion
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime test dependencies
+        run: sudo apt-get update && sudo apt-get install -y shellcheck tmux
+      - name: Run Bash integration suite
+        env:
+          CORALLINE_TEST_USE_FAKE_CODEX: '1'
+        run: ./test/run.sh
+      - name: Parse PowerShell entrypoints
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse -Filter *.ps1 | ForEach-Object {
+            [void][scriptblock]::Create((Get-Content -LiteralPath $_.FullName -Raw))
+            Write-Output "parsed: $($_.FullName)"
+          }
+
+  macos:
+    name: macOS / Bash companion
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Bash 5, shellcheck, and tmux
+        run: brew install bash shellcheck tmux
+      - name: Run Bash integration suite
+        env:
+          CORALLINE_TEST_USE_FAKE_CODEX: '1'
+        run: |
+          export PATH="$(brew --prefix bash)/bin:$PATH"
+          bash ./test/run.sh
+
+  windows:
+    name: Windows / PowerShell and Git Bash
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run native PowerShell lifecycle suite
+        shell: pwsh
+        run: ./test/windows.ps1
+      - name: Run Git Bash compatibility suite
+        shell: bash
+        env:
+          CORALLINE_TEST_USE_FAKE_CODEX: '1'
+        run: ./test/run.sh

@@ -18,6 +18,7 @@ usage: configure.sh [options]
   --runtime-probe on|off  allow node/python3 subprocess probes
   --segments "..."        set companion segment order
   --usage-refresh SECS    refresh plan-limit cache interval (minimum 30)
+  --usage-stale SECS      mark cached limits stale after this age (minimum 60)
   --show                  print the effective companion configuration
 EOF
 }
@@ -43,6 +44,7 @@ while (($#)); do
     --runtime-probe) shift; CHANGES+=("CC_RUNTIME_PROBE=${1:?missing mode}") ;;
     --segments) shift; CHANGES+=("CC_SEGMENTS=${1:?missing segments}") ;;
     --usage-refresh) shift; CHANGES+=("CC_USAGE_REFRESH=${1:?missing seconds}") ;;
+    --usage-stale) shift; CHANGES+=("CC_USAGE_STALE_AFTER=${1:?missing seconds}") ;;
     --show) SHOW=1 ;;
     -h | --help) usage; exit 0 ;;
     *) printf 'configure: unknown option: %s\n' "$1" >&2; exit 2 ;;
@@ -60,6 +62,7 @@ if ((${#CHANGES[@]})); then
       CC_ASCII) [[ $value == auto || $value == on || $value == off ]] || { printf 'ascii must be auto, on, or off\n' >&2; exit 2; } ;;
       CC_NODE | CC_PYTHON | CC_RUNTIME_PROBE) [[ $value == on || $value == off ]] || { printf '%s must be on or off\n' "$key" >&2; exit 2; } ;;
       CC_USAGE_REFRESH) [[ $value =~ ^[0-9]+$ ]] && ((value >= 30)) || { printf 'usage refresh must be at least 30 seconds\n' >&2; exit 2; } ;;
+      CC_USAGE_STALE_AFTER) [[ $value =~ ^[0-9]+$ ]] && ((value >= 60)) || { printf 'usage stale threshold must be at least 60 seconds\n' >&2; exit 2; } ;;
     esac
   done
   result=$(python3 "$ROOT/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUPS" "${CHANGES[@]}")

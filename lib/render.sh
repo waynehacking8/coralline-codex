@@ -34,6 +34,7 @@ done
 : "${CC_MAX_DIR:=40}"
 : "${CC_NATIVE_STATUS:=on}"
 : "${CC_USAGE_REFRESH:=60}"
+: "${CC_USAGE_STALE_AFTER:=180}"
 [ -f "$CONFIG_FILE" ] && . "$CONFIG_FILE"
 [ -n "$STATE_FILE" ] && [ -f "$STATE_FILE" ] && . "$STATE_FILE"
 [ -n "${CORALLINE_RATE_CACHE:-}" ] && [ -f "$CORALLINE_RATE_CACHE" ] && . "$CORALLINE_RATE_CACHE"
@@ -190,6 +191,15 @@ for segment in $CC_SEGMENTS; do
     git) SEG_LABEL=$SEG_GIT; [ -n "$SEG_LABEL" ] && { [ "$ASCII" = 1 ] && SEG_LABEL="git $SEG_LABEL" || SEG_LABEL=" $SEG_LABEL"; }; if ((GIT_DIRTY)); then COLOR=$C_GIT_DIRTY; else COLOR=$C_GIT_OK; fi ;;
     limits)
       if [ "${CORALLINE_RATE_AVAILABLE:-0}" = 1 ]; then
+        printf -v rate_now '%(%s)T' -1 2>/dev/null || rate_now=$(date +%s)
+        rate_updated=${CORALLINE_RATE_UPDATED:-0}
+        [[ $rate_updated =~ ^[0-9]+$ ]] || rate_updated=0
+        rate_age=$((rate_now - rate_updated))
+        ((rate_age < 0)) && rate_age=0
+        rate_stale=0
+        if [[ $CC_USAGE_STALE_AFTER =~ ^[0-9]+$ ]] && ((rate_age > CC_USAGE_STALE_AFTER)); then
+          rate_stale=1
+        fi
         for ((limit_index = 1; limit_index <= ${CORALLINE_LIMIT_COUNT:-0}; limit_index++)); do
           indirect_value "CORALLINE_LIMIT${limit_index}_LABEL"; limit_label=$INDIRECT_VALUE
           indirect_value "CORALLINE_LIMIT${limit_index}_USED"; limit_used=$INDIRECT_VALUE
@@ -201,7 +211,14 @@ for segment in $CC_SEGMENTS; do
           if [ "$ASCII" = 1 ]; then SEG_LABEL="$limit_label $REMAINING_BAR ${limit_remaining}% left";
           else SEG_LABEL="$limit_label $REMAINING_BAR ${limit_remaining}%"; fi
           [ -n "$RESET_TEXT" ] && SEG_LABEL+=" ↺$RESET_TEXT"
-          if ((limit_used >= 75)); then COLOR=$C_GIT_DIRTY;
+          if ((rate_stale)); then
+            if ((rate_age >= 3600)); then rate_stale_text="$((rate_age / 3600))h";
+            elif ((rate_age >= 60)); then rate_stale_text="$((rate_age / 60))m";
+            else rate_stale_text="${rate_age}s"; fi
+            if [ "$ASCII" = 1 ]; then SEG_LABEL+=" stale:$rate_stale_text";
+            else SEG_LABEL+=" ⚠$rate_stale_text"; fi
+            COLOR=$C_GIT_DIRTY
+          elif ((limit_used >= 75)); then COLOR=$C_GIT_DIRTY;
           elif ((limit_used >= 50)); then COLOR=$C_PROFILE;
           else COLOR=$C_GIT_OK; fi
           add_segment "$SEG_LABEL" "$COLOR"

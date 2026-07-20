@@ -12,18 +12,39 @@ assert_contains() { [[ $1 == *"$2"* ]] || fail "$3 (missing: $2)"; }
 assert_not_contains() { [[ $1 != *"$2"* ]] || fail "$3 (unexpected: $2)"; }
 assert_file() { [ -f "$1" ] || fail "$2 ($1)"; }
 assert_absent() { [ ! -e "$1" ] && [ ! -L "$1" ] || fail "$2 ($1)"; }
+hash_file() { python3 - "$1" <<'PY'
+from pathlib import Path
+import hashlib
+import sys
+print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())
+PY
+}
+
+if [ "${CORALLINE_TEST_USE_FAKE_CODEX:-0}" = 1 ]; then
+  mkdir -p "$TEST_ROOT/test-bin"
+  cat > "$TEST_ROOT/test-bin/codex" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in
+  *' --version '*) printf 'codex-cli platform-test\n' ;;
+  *) printf 'fake codex: %s\n' "$*" ;;
+esac
+EOF
+  chmod 755 "$TEST_ROOT/test-bin/codex"
+  PATH="$TEST_ROOT/test-bin:$PATH"
+  export PATH
+fi
 
 bash -n "$ROOT/bin/coralline-codex" "$ROOT/lib/render.sh" "$ROOT/configure.sh" \
   "$ROOT/install.sh" "$ROOT/test/verify-install.sh" "$0"
 python3 -c 'import pathlib,sys; [compile(pathlib.Path(p).read_text(), p, "exec") for p in sys.argv[1:]]' \
-  "$ROOT/lib/config.py" "$ROOT/lib/usage.py" "$ROOT/tools/generate_themes.py"
+  "$ROOT/lib/config.py" "$ROOT/lib/shell_integration.py" "$ROOT/lib/usage.py" "$ROOT/tools/generate_themes.py"
 if command -v shellcheck >/dev/null 2>&1; then
   shellcheck "$ROOT/bin/coralline-codex" "$ROOT/lib/render.sh" "$ROOT/configure.sh" \
     "$ROOT/install.sh" "$ROOT/test/verify-install.sh"
 fi
 pass 'shell and Python lint/syntax checks'
 
-if command -v tmux >/dev/null 2>&1 && command -v script >/dev/null 2>&1; then
+if [ "$(uname -s)" != Darwin ] && command -v tmux >/dev/null 2>&1 && command -v script >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
   printf -v tty_command '%q --version' "$ROOT/bin/coralline-codex"
   tty_output=$(TERM=xterm-256color timeout 10 script -qfec "$tty_command" /dev/null 2>&1)
   assert_contains "$tty_output" 'codex-cli ' 'tmux companion launches Codex in a pseudo-terminal'
@@ -98,6 +119,7 @@ rate_values=$(< "$rate_cache")
 assert_contains "$rate_values" 'CORALLINE_LIMIT1_LABEL=7d' 'weekly window classified from duration'
 assert_contains "$rate_values" 'CORALLINE_LIMIT1_REMAINING=66' 'remaining plan usage calculated'
 assert_contains "$rate_values" 'CORALLINE_LIFETIME_TOKENS=123456789' 'account token activity cached'
+assert_contains "$rate_values" "CORALLINE_RATE_ERROR=''" 'successful refresh clears prior error state'
 pass 'official app-server rate-limit protocol and cache mapping'
 
 rollout="$usage_dir/rollout-test.jsonl"
@@ -107,6 +129,31 @@ cat > "$rollout" <<'EOF'
 EOF
 session_cache="$usage_dir/session tokens.env"
 python3 "$ROOT/lib/usage.py" extract --rollout "$rollout" --session-cache "$session_cache"
+incremental=$(python3 - "$ROOT/lib/usage.py" "$rollout" <<'PY'
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+spec = importlib.util.spec_from_file_location("coralline_usage", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+path = Path(sys.argv[2])
+offset, initial = module.read_rollout_updates(path)
+event = {"type": "event_msg", "payload": {"type": "token_count", "info": {
+    "total_token_usage": {"input_tokens": 200000, "output_tokens": 4000, "total_tokens": 204000}
+}}}
+with path.open("ab") as handle:
+    handle.write(json.dumps(event).encode())
+partial_offset, partial = module.read_rollout_updates(path, offset)
+with path.open("ab") as handle:
+    handle.write(b"\n")
+final_offset, final = module.read_rollout_updates(path, partial_offset)
+print(initial["CORALLINE_SESSION_TOTAL"], partial is None, partial_offset == offset,
+      final["CORALLINE_SESSION_TOTAL"], final_offset > offset)
+PY
+)
+[ "$incremental" = '123456 True True 204000 True' ] || fail 'incremental rollout tailing mishandled a partial JSONL record'
 pid_rollout=$(python3 - "$ROOT/lib/usage.py" "$rollout" <<'PY'
 import importlib.util
 import os
@@ -139,6 +186,28 @@ assert_contains "$usage_render" '7d ###-- 66% left' 'plan limit renders in compa
 assert_contains "$usage_render" 'tok 123.4k in:120.0k out:3.4k' 'session tokens render in companion bar'
 pass 'rollout discovery and cached usage segments render'
 
+python3 - "$ROOT/lib/usage.py" "$rate_cache" <<'PY'
+import importlib.util
+from pathlib import Path
+import sys
+
+spec = importlib.util.spec_from_file_location("coralline_usage", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+cache = Path(sys.argv[2])
+module.record_rate_failure(cache, RuntimeError("temporary app-server failure"))
+values = module.read_env(cache)
+assert values["CORALLINE_LIMIT1_REMAINING"] == "66"
+assert values["CORALLINE_RATE_ERROR"] == "temporary app-server failure"
+PY
+stale_cache="$usage_dir/stale rate.env"
+sed 's/^CORALLINE_RATE_UPDATED=.*/CORALLINE_RATE_UPDATED=1/' "$rate_cache" > "$stale_cache"
+stale_render=$(CC_ASCII=on CC_USAGE_STALE_AFTER=60 CC_SEGMENTS='limits' \
+  CORALLINE_RATE_CACHE="$stale_cache" CORALLINE_CODEX_CONFIG=/dev/null \
+  "$ROOT/lib/render.sh" --plain --width 120 --cwd "$empty")
+assert_contains "$stale_render" 'stale:' 'stale plan snapshot is visibly marked'
+pass 'refresh failures preserve data and stale snapshots remain honest'
+
 priority_render=$(CC_ASCII=on CORALLINE_CODEX_CONFIG=/dev/null \
   "$ROOT/lib/render.sh" --plain --width 80 --cwd "$repo" --state "$state")
 assert_contains "$priority_render" '7d ###-- 66% left' 'plan limit survives a narrow companion bar'
@@ -160,7 +229,7 @@ for _ in 1 2 3 4 5 6; do
 done
 kill "$watcher_pid" >/dev/null 2>&1 || true
 wait "$watcher_pid" >/dev/null 2>&1 || true
-assert_contains "$(< "$watched_session")" 'CORALLINE_SESSION_TOTAL=123456' 'watcher discovers active rollout tokens'
+assert_contains "$(< "$watched_session")" 'CORALLINE_SESSION_TOTAL=204000' 'watcher discovers the latest active rollout tokens'
 assert_contains "$(< "$watched_rate")" 'CORALLINE_LIMIT1_REMAINING=66' 'watcher refreshes account limits'
 pass 'background watcher combines account and active-session data'
 
@@ -173,22 +242,70 @@ CC_THEME=mono
 CUSTOM_KEEP='value with spaces'
 CC_NODE=off
 EOF
-before=$(sha256sum "$config" | awk '{print $1}')
+before=$(hash_file "$config")
 python3 "$ROOT/lib/config.py" merge --config "$config" --backup-dir "$config_dir/backups" \
   CC_THEME=nord CC_NODE=on >/dev/null
 merged=$(< "$config")
 assert_contains "$merged" '# user comment' 'config comments preserved'
 assert_contains "$merged" "CUSTOM_KEEP='value with spaces'" 'unknown config preserved'
 assert_contains "$merged" 'CC_THEME=nord' 'known config replaced'
-backup=$(find "$config_dir/backups" -type f -name 'custom config.conf.bak.*' -print -quit)
+backup=$(find "$config_dir/backups" -type f -name 'custom config.conf.bak.*' -print | sed -n '1p')
 assert_file "$backup" 'config backup created'
-after_backup=$(sha256sum "$backup" | awk '{print $1}')
+after_backup=$(hash_file "$backup")
 [ "$before" = "$after_backup" ] || fail 'config backup is not byte-identical'
 pass 'configuration merging preserves unrelated data and backs up first'
 
+shell_dir="$TEST_ROOT/shell integration"
+mkdir -p "$shell_dir/backups"
+shell_rc="$shell_dir/bash rc"
+shell_state_home="$shell_dir/Codex Home"
+shell_wrapper="$shell_dir/coralline wrapper"
+shell_codex="$shell_dir/real codex"
+cat > "$shell_wrapper" <<'EOF'
+#!/usr/bin/env bash
+printf 'wrapper:%s:%s\n' "$CORALLINE_CODEX_BIN" "$*"
+EOF
+cat > "$shell_codex" <<'EOF'
+#!/usr/bin/env bash
+printf 'real:%s\n' "$*"
+EOF
+chmod 755 "$shell_wrapper" "$shell_codex"
+cat > "$shell_rc" <<'EOF'
+export USER_SETTING='keep me'
+# coralline-codex: route normal Codex launches through the themed wrapper.
+codex() {
+    CORALLINE_CODEX_BIN=/usr/bin/codex "$HOME/.local/bin/coralline-codex" "$@"
+}
+EOF
+python3 "$ROOT/lib/shell_integration.py" install --codex-home "$shell_state_home" \
+  --backup-dir "$shell_dir/backups" --shell bash --rc "$shell_rc" \
+  --wrapper "$shell_wrapper" --codex-bin "$shell_codex" >/dev/null
+hook=$(< "$shell_rc")
+assert_contains "$hook" '# >>> coralline-codex managed shell integration >>>' 'managed shell marker installed'
+assert_not_contains "$hook" '# coralline-codex: route normal' 'legacy shell hook migrated'
+assert_contains "$hook" "export USER_SETTING='keep me'" 'unrelated shell configuration preserved'
+hook_hash=$(hash_file "$shell_rc")
+python3 "$ROOT/lib/shell_integration.py" install --codex-home "$shell_state_home" \
+  --backup-dir "$shell_dir/backups" --shell bash --rc "$shell_rc" \
+  --wrapper "$shell_wrapper" --codex-bin "$shell_codex" >/dev/null
+[ "$hook_hash" = "$(hash_file "$shell_rc")" ] || fail 'shell hook installation is not idempotent'
+hook_run=$(bash -c 'source "$1"; codex --yolo' _ "$shell_rc")
+assert_contains "$hook_run" "wrapper:$shell_codex:--yolo" 'managed hook routes codex through wrapper'
+bypass_run=$(CORALLINE_CODEX_DISABLE=1 bash -c 'source "$1"; codex --version' _ "$shell_rc")
+assert_contains "$bypass_run" 'real:--version' 'managed hook supports an explicit bypass'
+python3 "$ROOT/lib/shell_integration.py" status --codex-home "$shell_state_home" \
+  --backup-dir "$shell_dir/backups" --rc "$shell_rc" >/dev/null
+python3 "$ROOT/lib/shell_integration.py" uninstall --codex-home "$shell_state_home" \
+  --backup-dir "$shell_dir/backups" --rc "$shell_rc" >/dev/null
+assert_not_contains "$(< "$shell_rc")" 'coralline-codex managed shell integration' 'managed hook removed cleanly'
+assert_contains "$(< "$shell_rc")" "export USER_SETTING='keep me'" 'shell uninstall preserved unrelated configuration'
+assert_absent "$shell_state_home/coralline-codex-shell.json" 'shell integration state removed'
+pass 'optional shell integration is managed, reversible, and idempotent'
+
 codex_home="$TEST_ROOT/Codex Home"
 bin_dir="$TEST_ROOT/bin with spaces"
-mkdir -p "$codex_home" "$bin_dir"
+test_home="$TEST_ROOT/test home"
+mkdir -p "$codex_home" "$bin_dir" "$test_home"
 cat > "$codex_home/config.toml" <<'EOF'
 model = "gpt-5.6"
 approval_policy = "never"
@@ -197,14 +314,17 @@ approval_policy = "never"
 command = "printf"
 args = ["path with spaces"]
 EOF
-codex_config_hash=$(sha256sum "$codex_home/config.toml" | awk '{print $1}')
-CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" "$ROOT/install.sh" >/dev/null
+codex_config_hash=$(hash_file "$codex_home/config.toml")
+HOME="$test_home" CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" \
+  "$ROOT/install.sh" --shell-hook bash >/dev/null
 assert_file "$codex_home/coralline-codex/VERSION" 'fresh install runtime'
 assert_file "$codex_home/coralline-codex/lib/usage.py" 'fresh install usage watcher'
+assert_file "$codex_home/coralline-codex/lib/shell_integration.py" 'fresh install shell integration helper'
 [ -L "$bin_dir/coralline-codex" ] || fail 'fresh install command symlink'
+assert_contains "$(< "$test_home/.bashrc")" '# >>> coralline-codex managed shell integration >>>' 'installer enables requested shell hook'
 generated_count=$(find "$codex_home/themes" -name 'coralline-*.tmTheme' -type f | wc -l)
 ((generated_count == 9)) || fail "expected 9 generated themes, got $generated_count"
-[ "$codex_config_hash" = "$(sha256sum "$codex_home/config.toml" | awk '{print $1}')" ] || fail 'install changed config.toml'
+[ "$codex_config_hash" = "$(hash_file "$codex_home/config.toml")" ] || fail 'install changed config.toml'
 CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" "$bin_dir/coralline-codex" verify >/dev/null
 pass 'isolated fresh install and strict Codex verification'
 
@@ -213,24 +333,26 @@ python3 "$codex_home/coralline-codex/lib/config.py" merge \
   'CC_SEGMENTS=dir project git node python model profile elapsed clock' >/dev/null
 printf 'local marker\n' >> "$codex_home/coralline-codex/VERSION"
 CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" "$ROOT/install.sh" --update >/dev/null
-backup_install=$(find "$codex_home/coralline-codex-backups" -path '*/install/VERSION' -print -quit)
+backup_install=$(find "$codex_home/coralline-codex-backups" -path '*/install/VERSION' -print | sed -n '1p')
 assert_file "$backup_install" 'upgrade runtime backup'
 assert_contains "$(< "$backup_install")" 'local marker' 'upgrade retained exact old runtime'
 assert_not_contains "$(< "$codex_home/coralline-codex/VERSION")" 'local marker' 'upgrade installed new runtime'
 assert_contains "$(< "$codex_home/coralline-codex.conf")" \
   'CC_SEGMENTS='\''limits tokens dir git project node python model profile elapsed clock'\''' \
   'upgrade migrated the previous default segment order'
-[ "$codex_config_hash" = "$(sha256sum "$codex_home/config.toml" | awk '{print $1}')" ] || fail 'upgrade changed config.toml'
+[ "$codex_config_hash" = "$(hash_file "$codex_home/config.toml")" ] || fail 'upgrade changed config.toml'
 pass 'upgrade replaces owned runtime and preserves Codex configuration'
 
-CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" "$codex_home/coralline-codex/install.sh" --uninstall >/dev/null
+HOME="$test_home" CODEX_HOME="$codex_home" CORALLINE_BIN_DIR="$bin_dir" \
+  "$codex_home/coralline-codex/install.sh" --uninstall >/dev/null
 assert_absent "$codex_home/coralline-codex" 'uninstall runtime removal'
 assert_absent "$bin_dir/coralline-codex" 'uninstall command removal'
 assert_absent "$codex_home/coralline-codex.conf" 'uninstall config removal'
+assert_not_contains "$(< "$test_home/.bashrc")" 'coralline-codex managed shell integration' 'uninstall removed managed shell hook'
 remaining_themes=$(find "$codex_home/themes" -name 'coralline-*.tmTheme' -type f | wc -l)
 ((remaining_themes == 0)) || fail 'uninstall left generated themes'
-[ "$codex_config_hash" = "$(sha256sum "$codex_home/config.toml" | awk '{print $1}')" ] || fail 'uninstall changed config.toml'
-uninstall_backup=$(find "$codex_home/coralline-codex-backups" -path '*/coralline-codex.conf' -print -quit)
+[ "$codex_config_hash" = "$(hash_file "$codex_home/config.toml")" ] || fail 'uninstall changed config.toml'
+uninstall_backup=$(find "$codex_home/coralline-codex-backups" -path '*/coralline-codex.conf' -print | sed -n '1p')
 assert_file "$uninstall_backup" 'uninstall recoverable config backup'
 pass 'uninstall is scoped and recoverable'
 

@@ -39,6 +39,7 @@ Commands:
   run [CODEX_ARGS...]   launch Codex with the native footer and companion bar
   render [ARGS...]      render the companion once
   usage                 refresh and show plan limits and account token activity
+  shell ACTION [ARGS]   install, remove, or inspect the optional codex shell hook
   preview               preview every bundled theme
   configure [ARGS...]   update companion configuration safely
   verify                verify the installed integration
@@ -149,6 +150,17 @@ case $command in
     shift
     exec python3 "$ROOT/lib/usage.py" status --codex-bin "$CODEX_BIN" \
       --rate-cache "$CODEX_DIR/coralline-codex-cache/rate.env" "$@" ;;
+  shell)
+    shift
+    shell_action=${1:-status}
+    (($#)) && shift
+    shell_common=(--codex-home "$CODEX_DIR" --backup-dir "$CODEX_DIR/coralline-codex-backups/shell")
+    if [ "$shell_action" = install ]; then
+      wrapper_command=$(command -v coralline-codex 2>/dev/null || printf '%s' "$ROOT/bin/coralline-codex")
+      exec python3 "$ROOT/lib/shell_integration.py" install "${shell_common[@]}" \
+        --wrapper "$wrapper_command" --codex-bin "$CODEX_BIN" "$@"
+    fi
+    exec python3 "$ROOT/lib/shell_integration.py" "$shell_action" "${shell_common[@]}" "$@" ;;
   preview)
     shift
     while IFS=$'\t' read -r theme _; do

@@ -32,6 +32,7 @@ ALLOWED = {
     "CC_MAX_DIR",
     "CC_NATIVE_STATUS",
     "CC_USAGE_REFRESH",
+    "CC_USAGE_STALE_AFTER",
 }
 
 
