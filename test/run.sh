@@ -27,8 +27,10 @@ if [ "${CORALLINE_TEST_USE_FAKE_CODEX:-0}" = 1 ]; then
   mkdir -p "$TEST_ROOT/test-bin"
   cat > "$TEST_ROOT/test-bin/platform_codex.py" <<'PY'
 import sys
+import time
 if "--version" in sys.argv:
     print("codex-cli platform-test")
+    time.sleep(0.5)
 else:
     print("fake codex: " + " ".join(sys.argv[1:]))
 PY
@@ -63,7 +65,9 @@ pass 'shell and Python lint/syntax checks'
 
 if [ "$(uname -s)" != Darwin ] && command -v tmux >/dev/null 2>&1 && command -v script >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
   printf -v tty_command '%q --version' "$ROOT/bin/coralline-codex"
-  tty_output=$(TERM=xterm-256color timeout 10 script -qfec "$tty_command" /dev/null 2>&1)
+  if ! tty_output=$(TERM=xterm-256color timeout 10 script -qfec "$tty_command" /dev/null 2>&1); then
+    fail "tmux companion pseudo-terminal launch failed: $tty_output"
+  fi
   assert_contains "$tty_output" 'codex-cli ' 'tmux companion launches Codex in a pseudo-terminal'
   assert_not_contains "$tty_output" 'unbound variable' 'tmux companion cleanup is scoped'
   pass 'isolated tmux companion launch and cleanup'
@@ -189,7 +193,7 @@ print(initial["CORALLINE_SESSION_TOTAL"], partial is None, partial_offset == off
 PY
 )
 [ "$incremental" = '123456 True True 204000 True' ] || fail 'incremental rollout tailing mishandled a partial JSONL record'
-if ((WINDOWS_SHELL == 0)); then
+if ((WINDOWS_SHELL == 0)) && [ "$(uname -s)" = Linux ]; then
   pid_rollout=$(python3 - "$ROOT/lib/usage.py" "$rollout" <<'PY'
 import importlib.util
 import os
@@ -286,7 +290,8 @@ assert values["CORALLINE_LIMIT1_BURN_ETA"] == 28800
 assert values["CORALLINE_LIMIT1_BURN_RATE_PER_HOUR"] == 10
 assert values["CORALLINE_LIMIT2_BURN_STATE"] == "safe"
 assert not history.with_name(f".{history.name}.lock").exists()
-assert stat.S_IMODE(history.stat().st_mode) == 0o600
+if os.name != "nt":
+    assert stat.S_IMODE(history.stat().st_mode) == 0o600
 assert len(json.loads(history.read_text())["windows"]) == 2
 module.atomic_env(cache, values)
 PY
