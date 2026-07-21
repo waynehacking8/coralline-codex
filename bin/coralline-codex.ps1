@@ -15,7 +15,10 @@ function Read-CorallineConfig {
     if (Test-Path -LiteralPath $ConfigPath) {
         return Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
     }
-    return [pscustomobject]@{ theme = 'claude-coral'; nativeStatus = $true; codexBin = '' }
+    return [pscustomobject]@{
+        theme = 'claude-coral'; nativeStatus = $true; codexBin = ''
+        nativeFields = @('model-with-reasoning', 'run-state', 'context-remaining', 'five-hour-limit', 'weekly-limit', 'used-tokens', 'fast-mode', 'task-progress')
+    }
 }
 
 function Get-PythonCommand {
@@ -74,6 +77,11 @@ switch ($Command) {
                     if ($index -ge $Rest.Count) { throw 'configure: missing native-status value' }
                     $configureArgs.NativeStatus = $Rest[$index]
                 }
+                { $_ -in @('-NativeFields', '--native-fields') } {
+                    $index++
+                    if ($index -ge $Rest.Count) { throw 'configure: missing native-fields value' }
+                    $configureArgs.NativeFields = $Rest[$index]
+                }
                 { $_ -in @('-Show', '--show') } { $configureArgs.Show = $true }
                 default { throw "configure: unknown option: $($Rest[$index])" }
             }
@@ -113,8 +121,15 @@ if ($env:CORALLINE_CODEX_DISABLE -eq '1') {
 $Native = @()
 if ($Config.nativeStatus -ne $false) {
     $Theme = if ($Config.theme) { [string]$Config.theme } else { 'claude-coral' }
+    $DefaultFields = @('model-with-reasoning', 'context-remaining', 'five-hour-limit', 'weekly-limit', 'used-tokens')
+    $Fields = if ($Config.PSObject.Properties.Name -contains 'nativeFields') { @($Config.nativeFields) } else { $DefaultFields }
+    $StatusOverride = @()
+    if (-not ($Fields.Count -eq 1 -and $Fields[0] -eq 'inherit')) {
+        $FieldList = ($Fields | ForEach-Object { '"' + [string]$_ + '"' }) -join ','
+        $StatusOverride = @('-c', "tui.status_line=[$FieldList]")
+    }
     $Native = @(
-        '-c', 'tui.status_line=["model-with-reasoning","context-remaining","five-hour-limit","weekly-limit","used-tokens"]',
+        $StatusOverride
         '-c', 'tui.status_line_use_colors=true',
         '-c', "tui.theme=`"coralline-$Theme`""
     )

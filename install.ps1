@@ -149,8 +149,14 @@ if (Test-Path -LiteralPath $Config) {
     $settings = Get-Content -LiteralPath $Config -Raw | ConvertFrom-Json
     Backup-File $Config (Join-Path $BackupRoot 'windows-config') | Out-Null
     $settings.codexBin = $CodexBin
+    if ($settings.PSObject.Properties.Name -notcontains 'nativeFields') {
+        $settings | Add-Member -NotePropertyName nativeFields -NotePropertyValue @('model-with-reasoning', 'run-state', 'context-remaining', 'five-hour-limit', 'weekly-limit', 'used-tokens', 'fast-mode', 'task-progress')
+    }
 } else {
-    $settings = [pscustomobject]@{ version = 1; theme = 'claude-coral'; nativeStatus = $true; codexBin = $CodexBin }
+    $settings = [pscustomobject]@{
+        version = 1; theme = 'claude-coral'; nativeStatus = $true; codexBin = $CodexBin
+        nativeFields = @('model-with-reasoning', 'run-state', 'context-remaining', 'five-hour-limit', 'weekly-limit', 'used-tokens', 'fast-mode', 'task-progress')
+    }
 }
 $settings | ConvertTo-Json | Set-Content -LiteralPath $Config -Encoding UTF8
 

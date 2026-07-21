@@ -21,6 +21,10 @@ usage: configure.sh [options]
   --python on|off         show Python when an environment/version is detected
   --runtime-probe on|off  allow node/python3 subprocess probes
   --segments "..."        set companion segment priority/order
+  --agents on|off         show active Codex subagent rows
+  --agent-rows 1..4       maximum active subagent rows (tmux supports five total)
+  --native-status on|off  enable or disable the themed Codex-native footer
+  --native-fields "..."   set native footer fields, or use "inherit"
   --usage-refresh SECS    refresh plan-limit cache interval (minimum 30)
   --usage-stale SECS      mark cached limits stale after this age (minimum 60)
   --shell-hook on|off     install or remove the managed codex shell function
@@ -43,7 +47,7 @@ segments_valid() {
   local item
   for item in $1; do
     case $item in
-      limits | burn | tokens | dir | project | git | node | python | model | profile | elapsed | clock) ;;
+      limits | burn | tokens | context | dir | project | git | stash | node | python | model | reasoning | profile | elapsed | clock) ;;
       *) printf 'unknown segment: %s\n' "$item" >&2; return 1 ;;
     esac
   done
@@ -69,7 +73,11 @@ load_current() {
   CC_ASCII=auto
   CC_NODE=off
   CC_PYTHON=off
-  CC_SEGMENTS='limits burn tokens dir git project node python model profile elapsed clock'
+  CC_SEGMENTS='limits burn tokens context dir git stash project node python model reasoning profile elapsed clock'
+  CC_NATIVE_STATUS=on
+  CC_NATIVE_FIELDS='model-with-reasoning run-state context-remaining five-hour-limit weekly-limit used-tokens fast-mode task-progress'
+  CC_AGENTS=on
+  CC_AGENT_ROWS=3
   CC_USAGE_REFRESH=60
   CC_USAGE_STALE_AFTER=180
   # User-selected companion configuration.
@@ -101,6 +109,10 @@ visual_wizard() {
   WIZARD_PYTHON=$CC_PYTHON
   WIZARD_REFRESH=$CC_USAGE_REFRESH
   WIZARD_STALE=$CC_USAGE_STALE_AFTER
+  WIZARD_NATIVE_STATUS=$CC_NATIVE_STATUS
+  WIZARD_NATIVE_FIELDS=$CC_NATIVE_FIELDS
+  WIZARD_AGENTS=$CC_AGENTS
+  WIZARD_AGENT_ROWS=$CC_AGENT_ROWS
   width=$(tput cols 2>/dev/null || printf 120)
   ((width > 140)) && width=140
   ((width < 60)) && width=60
@@ -166,6 +178,8 @@ visual_wizard() {
     "CC_THEME=$WIZARD_THEME" "CC_STYLE=$WIZARD_STYLE" "CC_ASCII=$WIZARD_ASCII"
     "CC_SEGMENTS=$WIZARD_SEGMENTS" "CC_NODE=$WIZARD_NODE" "CC_PYTHON=$WIZARD_PYTHON"
     "CC_USAGE_REFRESH=$WIZARD_REFRESH" "CC_USAGE_STALE_AFTER=$WIZARD_STALE"
+    "CC_NATIVE_STATUS=$WIZARD_NATIVE_STATUS" "CC_NATIVE_FIELDS=$WIZARD_NATIVE_FIELDS"
+    "CC_AGENTS=$WIZARD_AGENTS" "CC_AGENT_ROWS=$WIZARD_AGENT_ROWS"
   )
 }
 
@@ -181,6 +195,10 @@ while (($#)); do
     --python) shift; CHANGES+=("CC_PYTHON=${1:?missing mode}") ;;
     --runtime-probe) shift; CHANGES+=("CC_RUNTIME_PROBE=${1:?missing mode}") ;;
     --segments) shift; CHANGES+=("CC_SEGMENTS=${1:?missing segments}") ;;
+    --agents) shift; CHANGES+=("CC_AGENTS=${1:?missing mode}") ;;
+    --agent-rows) shift; CHANGES+=("CC_AGENT_ROWS=${1:?missing rows}") ;;
+    --native-status) shift; CHANGES+=("CC_NATIVE_STATUS=${1:?missing mode}") ;;
+    --native-fields) shift; CHANGES+=("CC_NATIVE_FIELDS=${1:?missing fields}") ;;
     --usage-refresh) shift; CHANGES+=("CC_USAGE_REFRESH=${1:?missing seconds}") ;;
     --usage-stale) shift; CHANGES+=("CC_USAGE_STALE_AFTER=${1:?missing seconds}") ;;
     --shell-hook) shift; case ${1:?missing shell hook mode} in on) SHELL_REQUEST=install ;; off) SHELL_REQUEST=uninstall ;; *) printf 'shell hook must be on or off\n' >&2; exit 2 ;; esac ;;
@@ -200,7 +218,17 @@ if ((${#CHANGES[@]})); then
       CC_THEME) theme_exists "$value" || { printf 'unknown theme: %s\n' "$value" >&2; exit 2; } ;;
       CC_STYLE) [[ $value == powerline || $value == pill || $value == lean || $value == classic ]] || { printf 'style must be powerline, pill, lean, or classic\n' >&2; exit 2; } ;;
       CC_ASCII) [[ $value == auto || $value == on || $value == off ]] || { printf 'ascii must be auto, on, or off\n' >&2; exit 2; } ;;
-      CC_NODE | CC_PYTHON | CC_RUNTIME_PROBE) [[ $value == on || $value == off ]] || { printf '%s must be on or off\n' "$key" >&2; exit 2; } ;;
+      CC_NODE | CC_PYTHON | CC_RUNTIME_PROBE | CC_AGENTS | CC_NATIVE_STATUS) [[ $value == on || $value == off ]] || { printf '%s must be on or off\n' "$key" >&2; exit 2; } ;;
+      CC_AGENT_ROWS) [[ $value =~ ^[1-4]$ ]] || { printf 'agent rows must be between 1 and 4\n' >&2; exit 2; } ;;
+      CC_NATIVE_FIELDS)
+        if [ "$value" != inherit ]; then
+          for native_field in $value; do
+            case $native_field in
+              model | model-name | model-with-reasoning | reasoning | current-dir | project-name | project-root | git-branch | pull-request-number | branch-changes | run-state | status | permissions | approval-mode | approval | context-remaining | context-used | context-usage | five-hour-limit | weekly-limit | codex-version | context-window-size | used-tokens | total-input-tokens | total-output-tokens | thread-id | session-id | fast-mode | raw-output | thread-title | workspace-headline | task-progress) ;;
+              *) printf 'unknown native status field: %s\n' "$native_field" >&2; exit 2 ;;
+            esac
+          done
+        fi ;;
       CC_SEGMENTS) segments_valid "$value" || exit 2 ;;
       CC_USAGE_REFRESH) if ! [[ $value =~ ^[0-9]+$ ]] || ((value < 30)); then printf 'usage refresh must be at least 30 seconds\n' >&2; exit 2; fi ;;
       CC_USAGE_STALE_AFTER) if ! [[ $value =~ ^[0-9]+$ ]] || ((value < 60)); then printf 'usage stale threshold must be at least 60 seconds\n' >&2; exit 2; fi ;;

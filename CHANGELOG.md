@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 - 2026-07-21
+
+- Add dynamic Codex subagent rows with nickname, role, task, effective model and
+  reasoning, exact context/token usage, elapsed time, nesting, overflow, and
+  immediate completion collapse.
+- Add configurable coverage for every current Codex native status-line field,
+  including an `inherit` mode that preserves the user's own field list.
+- Add companion context, reasoning-effort, and Git stash segments.
+- Keep transparency and terminal-compositor effects out of scope so the project
+  remains focused on reliable Codex bar support.
+
 ## 0.2.1 - 2026-07-21
 
 - Add a connected Powerline-arrow style and make it the default for new installs,

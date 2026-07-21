@@ -2,16 +2,18 @@
 
 > A [Powerlevel10k](https://github.com/romkatv/powerlevel10k)-inspired status
 > experience for the OpenAI Codex CLI, pairing Codex's native footer with a live
-> terminal companion for usage limits, burn projection, and session tokens.
+> terminal companion for usage limits, context, session tokens, and active
+> Codex subagents.
 
 [繁體中文說明](./README.zh-TW.md)
 
-![Six Coralline Codex themes rendered with connected Powerline arrows](./assets/hero.svg)
+![Six Coralline Codex themes with connected Powerline bars and active agent rows](./assets/hero.svg)
 
 ## What you get
 
 ```text
-7d ▰▰▰▰▱ 79% ↺1d11h  ↗7d 4d12h  Σ123.4k ↑120.0k ↓3.4k  ~/dev/coralline-codex   main+!?  ◆ gpt-5.6  ⧖ 47m  ◷ 16:53 
+● scout [explorer]  Explore config sources  ◆ gpt-5.4 high  ⬡ ▰▱▱▱▱ 21% 42.0k  ⧖ 2m05s 
+7d ▰▰▰▰▱ 79% ↺1d11h  Σ123.4k ↑120.0k ↓3.4k  ⬡ ▰▱▱▱▱ 21% 42.0k  ~/dev/coralline-codex   main+!?  ◷ 16:53 
 ```
 
 | Segment | Shows |
@@ -19,18 +21,28 @@
 | `limits` | exact plan remaining percentage, a five-cell gauge, local reset countdown, and stale-data warning |
 | `burn` | conservative time-to-exhaustion projection with warming, idle, reset-safe, and tracking states |
 | `tokens` | active-session input, output, and total token counts |
+| `context` | current context-window use, percentage, and a five-cell gauge |
 | `dir` | current directory with long-path collapsing |
 | `project` | repository name; hidden outside a Git repository |
 | `git` | branch, staged `+`, modified `!`, untracked `?`, ahead `↑`, and behind `↓` state |
+| `stash` | Git stash count; hidden when zero |
 | `node` / `python` | pinned or active runtime environment; opt-in and hidden when undetected |
-| `model` / `profile` | launch-time Codex model and profile when available |
+| `model` / `reasoning` / `profile` | launch-time Codex model, reasoning effort, and profile when available |
 | `elapsed` | session wall-clock duration |
 | `clock` | local 24-hour time |
 
 The native Codex footer remains authoritative for live model, reasoning effort,
 context remaining, limits, and used tokens. The companion adds the fields Codex
 does not render there and progressively compacts down to a 30-column terminal.
-Gauges and projections change color with urgency.
+Gauges and projections change color with urgency. The native field list is
+configurable and can also be left entirely to the user's Codex configuration.
+
+While Codex subagents are running, the Bash companion expands from one row up
+to five total tmux status rows. Each agent row can show its Codex nickname,
+role, spawn task, effective model and reasoning effort, exact token/context
+usage, elapsed turn time, and nested-agent count. Rows collapse as soon as work
+completes; Codex's native `/agent` or `/subagents` view remains the history and
+navigation surface.
 
 Coralline Codex includes nine native Codex themes, four companion styles, an
 ASCII fallback, a guided visual setup, and an optional managed shell hook so
@@ -50,10 +62,10 @@ Claude Code project. Attribution and port details are in [NOTICE.md](./NOTICE.md
 | Native Windows PowerShell | Native | Themed Codex footer, limits/tokens, exact `usage`, managed PowerShell hook |
 | Windows Git Bash/MSYS2 | Compatible | Bash lifecycle and fallback tested; full companion requires a working tmux |
 
-Native Windows does not show the extra Powerlevel10k companion bar because Codex
-does not expose an external footer renderer there. It still gets the supported
-native Codex fields and on-demand usage tracking. Use WSL2 for feature parity
-with Linux and macOS.
+Native Windows does not show the extra Powerlevel10k companion or agent rows
+because Codex does not expose an external footer renderer there. It still gets
+the configurable native Codex fields, Codex's native `/agent` view, and
+on-demand usage tracking. Use WSL2 for feature parity with Linux and macOS.
 
 ## Install
 
@@ -62,7 +74,7 @@ does not ask you to pipe a remote script into a shell.
 
 ### Linux
 
-Install Bash 4+, Python 3.8+, Git, Codex, and tmux with your package manager,
+Install Bash 4+, Python 3.8+, Git, Codex CLI 0.144.6+, and tmux with your package manager,
 then:
 
 ```bash
@@ -78,7 +90,8 @@ Open a new shell. Normal `codex` commands now use Coralline. If
 
 ### macOS
 
-macOS ships an older Bash, so install current dependencies first:
+macOS ships an older Bash, so install current dependencies and Codex CLI
+0.144.6+ first:
 
 ```bash
 brew install bash python tmux git
@@ -98,7 +111,7 @@ and Bash in that distribution. This is the full Windows experience.
 
 ### Native Windows PowerShell
 
-Install Git, Python 3.8+, and Codex, then run from PowerShell:
+Install Git, Python 3.8+, and Codex CLI 0.144.6+, then run from PowerShell:
 
 ```powershell
 git clone https://github.com/waynehacking8/coralline-codex.git
@@ -154,7 +167,10 @@ Or make focused changes:
 ```bash
 coralline-codex configure --theme catppuccin-mocha --style powerline
 coralline-codex configure --node on --python on --runtime-probe off
-coralline-codex configure --segments "limits burn tokens dir git elapsed clock"
+coralline-codex configure --segments "limits burn tokens context dir git elapsed clock"
+coralline-codex configure --agents on --agent-rows 3
+coralline-codex configure --native-fields "model-with-reasoning run-state context-remaining task-progress"
+coralline-codex configure --native-fields inherit  # preserve config.toml's field list
 coralline-codex configure --ascii on --usage-refresh 60
 coralline-codex configure --preview
 ```
@@ -163,6 +179,7 @@ Native PowerShell supports theme/native-footer configuration:
 
 ```powershell
 coralline-codex configure --theme nord
+coralline-codex configure --native-fields "model-with-reasoning,run-state,task-progress"
 coralline-codex configure --show
 ```
 
@@ -174,11 +191,14 @@ that segment. The renderer progressively compacts limits and tokens down to a
 ## How usage tracking works
 
 The background watcher asks the authenticated Codex app-server for account
-limits, then writes atomic mode-0600 caches under
+limits and tails Codex's local rollout protocol for session and subagent state,
+then writes atomic mode-0600 caches under
 `$CODEX_HOME/coralline-codex-cache/`. Rendering is local and network-free.
 Transient failures preserve the last valid values and visibly mark them stale.
 
-Projection history contains only timestamps and percentage-used samples. It is
+Subagent task labels and telemetry live only in the private mode-0700 launch
+directory and are removed when the companion exits. Projection history contains
+only timestamps and percentage-used samples. It is
 stored mode 0600, separated by reset window, pruned after 14 days, and never
 uploaded by Coralline. A projection is explicitly labeled as warming up until a
 sufficient baseline exists; it is an estimate, not a promise from OpenAI.
@@ -187,6 +207,9 @@ The native Codex footer remains authoritative for live context percentage,
 model, and reasoning effort. If `/model` changes the model during a session, the
 native footer updates while the optional companion model label remains the
 launch-time value.
+
+See [Codex feature coverage](docs/CODEX-COVERAGE.md) for the supported-field
+matrix, deliberate exclusions, and related Codex status projects surveyed.
 
 ## Update and uninstall
 

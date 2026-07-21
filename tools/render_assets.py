@@ -86,7 +86,7 @@ def render_hero(palettes: list[dict[str, str]]) -> str:
     body = [
         '<rect x="1" y="1" width="1332" height="998" rx="14" fill="#0d0f17" stroke="#262b3d" stroke-width="2"/>',
         '<circle cx="28" cy="31" r="7" fill="#ff5f56"/><circle cx="52" cy="31" r="7" fill="#ffbd2e"/><circle cx="76" cy="31" r="7" fill="#27c93f"/>',
-        '<text x="667" y="39" fill="#969baf" font-size="20" text-anchor="middle">coralline codex — pick your vibe</text>',
+        '<text x="667" y="39" fill="#969baf" font-size="20" text-anchor="middle">coralline codex — native footer + active agent rows</text>',
         '<line x1="20" y1="62" x2="1314" y2="62" stroke="#262b3d"/>',
     ]
     selected = {
@@ -109,15 +109,18 @@ def render_hero(palettes: list[dict[str, str]]) -> str:
         )
         rows = (
             (
-                ("~/dev/coralline-codex", "directory"),
-                (" main+!?", "git_dirty"),
-                ("◆ gpt-5.6", "model"),
-                ("◷ 16:53", "clock"),
+                ("● scout [explorer]", "project"),
+                ("Explore config sources", "directory"),
+                ("◆ gpt-5.4 high", "model"),
+                ("⬡ ▰▱▱▱▱ 21% 42.0k", "profile"),
+                ("⧖ 2m05s", "duration"),
             ),
             (
                 ("7d ▰▰▰▰▱ 79% ↺1d11h", "git_ok"),
-                ("↗7d 4d12h", "profile"),
-                ("Σ123.4k ↑120.0k ↓3.4k", "model"),
+                ("Σ123.4k", "model"),
+                ("⬡ ▰▱▱▱▱ 21%", "profile"),
+                (" main+!?", "git_dirty"),
+                ("◷ 16:53", "clock"),
             ),
         )
         for row_index, segments in enumerate(rows):
@@ -131,12 +134,12 @@ def render_hero(palettes: list[dict[str, str]]) -> str:
                     palette[key],
                     palette["foreground"],
                     first=segment_index == 0,
-                    font_size=22,
-                    height=46,
+                    font_size=18,
+                    height=42,
                 )
                 body.append(item)
                 x += item_width
-    return document(width, height, "\n".join(body), "Six Coralline Codex themes with connected Powerline arrows")
+    return document(width, height, "\n".join(body), "Six Coralline Codex themes with active agent rows")
 
 
 def render_themes(palettes: list[dict[str, str]]) -> str:

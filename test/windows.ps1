@@ -95,6 +95,7 @@ else:
 
     $RunOutput = (& $Wrapper --yolo | Out-String)
     Assert-Contains $RunOutput 'tui.status_line=' 'native footer override is passed to Codex'
+    Assert-Contains $RunOutput 'task-progress' 'richer native footer fields are passed to Codex'
     Assert-Contains $RunOutput 'tui.theme=' 'native Coralline theme override is passed to Codex'
     Assert-Contains $RunOutput '--yolo' 'user Codex arguments are preserved'
     $UsageOutput = (& $Wrapper usage | Out-String)
@@ -103,8 +104,13 @@ else:
     Pass 'Windows launcher provides themed native status and exact usage data'
 
     & $Wrapper configure -Theme nord | Out-Null
+    & $Wrapper configure -NativeFields 'model-with-reasoning,task-progress' | Out-Null
     $WindowsConfig = Get-Content -LiteralPath (Join-Path $CodexHome 'coralline-codex.windows.json') -Raw | ConvertFrom-Json
     Assert-True ($WindowsConfig.theme -eq 'nord') 'Windows theme configuration was not persisted'
+    Assert-True ($WindowsConfig.nativeFields.Count -eq 2) 'Windows native footer fields were not persisted'
+    $RefusedNativeField = $false
+    try { & $Wrapper configure -NativeFields 'model,invented' 2>$null | Out-Null } catch { $RefusedNativeField = $true }
+    Assert-True $RefusedNativeField 'Windows configure accepted an unknown native footer field'
     & $Wrapper verify | Out-Null
     Pass 'Windows configuration and verification commands work'
 

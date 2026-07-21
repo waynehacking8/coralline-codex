@@ -157,15 +157,26 @@ done
 if [ ! -f "$CONFIG" ]; then
   python3 "$INSTALL_DIR/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUP_ROOT" \
     CC_THEME=claude-coral CC_STYLE=powerline CC_ASCII=auto CC_NODE=off CC_PYTHON=off \
-    CC_RUNTIME_PROBE=off 'CC_SEGMENTS=limits burn tokens dir git project node python model profile elapsed clock' \
-    CC_NATIVE_STATUS=on CC_USAGE_REFRESH=60 CC_USAGE_STALE_AFTER=180 >/dev/null
+    CC_RUNTIME_PROBE=off 'CC_SEGMENTS=limits burn tokens context dir git stash project node python model reasoning profile elapsed clock' \
+    CC_NATIVE_STATUS=on 'CC_NATIVE_FIELDS=model-with-reasoning run-state context-remaining five-hour-limit weekly-limit used-tokens fast-mode task-progress' \
+    CC_AGENTS=on CC_AGENT_ROWS=3 CC_USAGE_REFRESH=60 CC_USAGE_STALE_AFTER=180 >/dev/null
 elif grep -Fxq "CC_SEGMENTS='dir project git node python model profile elapsed clock'" "$CONFIG"; then
   python3 "$INSTALL_DIR/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUP_ROOT" \
-    'CC_SEGMENTS=limits burn tokens dir git project node python model profile elapsed clock' \
+    'CC_SEGMENTS=limits burn tokens context dir git stash project node python model reasoning profile elapsed clock' \
     CC_USAGE_REFRESH=60 CC_USAGE_STALE_AFTER=180 >/dev/null
 elif grep -Fxq "CC_SEGMENTS='limits tokens dir git project node python model profile elapsed clock'" "$CONFIG"; then
   python3 "$INSTALL_DIR/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUP_ROOT" \
-    'CC_SEGMENTS=limits burn tokens dir git project node python model profile elapsed clock' >/dev/null
+    'CC_SEGMENTS=limits burn tokens context dir git stash project node python model reasoning profile elapsed clock' >/dev/null
+elif grep -Fxq "CC_SEGMENTS='limits burn tokens dir git project node python model profile elapsed clock'" "$CONFIG"; then
+  python3 "$INSTALL_DIR/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUP_ROOT" \
+    'CC_SEGMENTS=limits burn tokens context dir git stash project node python model reasoning profile elapsed clock' >/dev/null
+fi
+declare -a feature_defaults=()
+grep -q '^CC_NATIVE_FIELDS=' "$CONFIG" || feature_defaults+=('CC_NATIVE_FIELDS=model-with-reasoning run-state context-remaining five-hour-limit weekly-limit used-tokens fast-mode task-progress')
+grep -q '^CC_AGENTS=' "$CONFIG" || feature_defaults+=(CC_AGENTS=on)
+grep -q '^CC_AGENT_ROWS=' "$CONFIG" || feature_defaults+=(CC_AGENT_ROWS=3)
+if ((${#feature_defaults[@]})); then
+  python3 "$INSTALL_DIR/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUP_ROOT" "${feature_defaults[@]}" >/dev/null
 fi
 install_command
 if [ "$SHELL_HOOK" = none ]; then

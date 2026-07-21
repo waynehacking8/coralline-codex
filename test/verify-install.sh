@@ -25,7 +25,7 @@ check python3 -c 'import pathlib,sys; [compile(pathlib.Path(p).read_text(), p, "
   "$ROOT/lib/config.py" "$ROOT/lib/shell_integration.py" "$ROOT/lib/usage.py" "$ROOT/tools/generate_themes.py"
 check "$ROOT/lib/render.sh" --plain --width 120 --cwd "$PWD"
 check env CODEX_HOME="$CODEX_DIR" codex --strict-config \
-  -c 'tui.status_line=["model-with-reasoning","context-remaining","five-hour-limit","weekly-limit","used-tokens"]' \
+  -c 'tui.status_line=["model-with-reasoning","run-state","context-remaining","five-hour-limit","weekly-limit","used-tokens","fast-mode","task-progress"]' \
   -c tui.status_line_use_colors=true -c 'tui.theme="coralline-claude-coral"' --version
 ((fail == 0)) || exit 1
 printf 'Verification passed. No network request was made by the renderer.\n'

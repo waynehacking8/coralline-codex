@@ -8,8 +8,9 @@ and future Codex releases.
 |---|---:|---|
 | Usage correctness | 9/10 | Official app-server fixture, weekly-window classification, exact reset, transient-failure retention, stale marker |
 | Token tracking | 9/10 | Snake/camel event forms, incremental JSONL, partial line, process-tree discovery, session rollover |
+| Subagent tracking | 9/10 | Official parent/thread fields, spawn identity/task, model/reasoning, per-agent context, nested overflow, completion collapse |
 | Projection honesty | 9/10 | Five-minute minimum baseline, warming/idle/reset-safe/tracking states, deterministic synthetic rates |
-| Responsive rendering | 9/10 | Nine themes, four styles, paths with spaces, 30-column critical-value preservation |
+| Responsive rendering | 9/10 | Nine themes, four styles, paths with spaces, 30-column critical-value preservation, dynamic one-to-five-row tmux status |
 | Onboarding | 9/10 | Visual wizard, strict validation, previews, managed shell hook, explicit bypass |
 | Update safety | 9/10 | Byte-identical runtime backup, user config preservation, release highlights, idempotent hooks |
 | Uninstall safety | 9/10 | Scoped removal, recoverable backups, unrelated profile/config preservation |

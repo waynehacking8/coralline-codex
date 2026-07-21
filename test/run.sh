@@ -14,7 +14,7 @@ fail() { printf 'not ok - %s\n' "$1" >&2; exit 1; }
 assert_contains() { [[ $1 == *"$2"* ]] || fail "$3 (missing: $2)"; }
 assert_not_contains() { [[ $1 != *"$2"* ]] || fail "$3 (unexpected: $2)"; }
 assert_file() { [ -f "$1" ] || fail "$2 ($1)"; }
-assert_absent() { [ ! -e "$1" ] && [ ! -L "$1" ] || fail "$2 ($1)"; }
+assert_absent() { if [ -e "$1" ] || [ -L "$1" ]; then fail "$2 ($1)"; fi; }
 hash_file() { python3 - "$1" <<'PY'
 from pathlib import Path
 import hashlib
@@ -28,6 +28,11 @@ if [ "${CORALLINE_TEST_USE_FAKE_CODEX:-0}" = 1 ]; then
   cat > "$TEST_ROOT/test-bin/platform_codex.py" <<'PY'
 import sys
 import time
+import os
+from pathlib import Path
+capture = os.environ.get("CORALLINE_TEST_CAPTURE_ARGS")
+if capture:
+    Path(capture).write_text("\n".join(sys.argv[1:]) + "\n", encoding="utf-8")
 if "--version" in sys.argv:
     print("codex-cli platform-test")
     time.sleep(0.5)
@@ -72,6 +77,83 @@ if [ "$(uname -s)" != Darwin ] && command -v tmux >/dev/null 2>&1 && command -v 
   assert_contains "$tty_output" 'codex-cli ' 'tmux companion launches Codex in a pseudo-terminal'
   assert_not_contains "$tty_output" 'unbound variable' 'tmux companion cleanup is scoped'
   pass 'isolated tmux companion launch and cleanup'
+
+  dynamic_root="$TEST_ROOT/dynamic agent rows"
+  dynamic_home="$dynamic_root/Codex Home"
+  dynamic_sockets="$dynamic_root/sockets"
+  mkdir -p "$dynamic_home" "$dynamic_sockets" "$dynamic_root/bin"
+  cat > "$dynamic_root/bin/fake_agent_codex.py" <<'PY'
+import datetime
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+if "app-server" in sys.argv:
+    for line in sys.stdin:
+        message = json.loads(line)
+        method = message.get("method")
+        if method == "initialize":
+            result = {"userAgent": "agent-row-test"}
+        elif method == "account/rateLimits/read":
+            result = {"rateLimits": {}}
+        elif method == "account/usage/read":
+            result = {}
+        else:
+            continue
+        print(json.dumps({"id": message.get("id"), "result": result}), flush=True)
+    raise SystemExit(0)
+
+home = Path(os.environ["CODEX_HOME"])
+cwd = os.environ["CORALLINE_TEST_CWD"]
+now = datetime.datetime.now(datetime.timezone.utc)
+directory = home / "sessions" / now.strftime("%Y/%m/%d")
+directory.mkdir(parents=True, exist_ok=True)
+stamp = now.isoformat().replace("+00:00", "Z")
+root = [
+    {"timestamp": stamp, "type": "session_meta", "payload": {"id": "root", "cwd": cwd}},
+    {"timestamp": stamp, "type": "event_msg", "payload": {
+        "type": "collab_agent_spawn_end", "sender_thread_id": "root", "new_thread_id": "child",
+        "new_agent_nickname": "scout", "new_agent_role": "explorer", "prompt": "Inspect status rows",
+        "model": "gpt-test", "reasoning_effort": "high", "status": "running"
+    }},
+]
+child_stamp = (now + datetime.timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
+child = [
+    {"timestamp": child_stamp, "type": "session_meta", "payload": {
+        "id": "child", "parent_thread_id": "root", "agent_nickname": "scout",
+        "agent_role": "explorer", "cwd": cwd
+    }},
+    {"timestamp": child_stamp, "type": "event_msg", "payload": {"type": "task_started"}},
+]
+for path, events in ((directory / "rollout-root.jsonl", root), (directory / "rollout-child.jsonl", child)):
+    path.write_text("".join(json.dumps(event) + "\n" for event in events), encoding="utf-8")
+time.sleep(6)
+PY
+  cat > "$dynamic_root/bin/codex" <<EOF
+#!/usr/bin/env bash
+exec python3 "$dynamic_root/bin/fake_agent_codex.py" "\$@"
+EOF
+  chmod 755 "$dynamic_root/bin/codex"
+  printf -v dynamic_command '%q' "$ROOT/bin/coralline-codex"
+  TMUX_TMPDIR="$dynamic_sockets" CODEX_HOME="$dynamic_home" \
+    CORALLINE_CODEX_BIN="$dynamic_root/bin/codex" CORALLINE_CODEX_CONFIG=/dev/null \
+    CORALLINE_TEST_CWD="$ROOT" TERM=xterm-256color \
+    timeout 12 script -qfec "$dynamic_command" /dev/null >"$dynamic_root/launch.log" 2>&1 &
+  dynamic_pid=$!
+  dynamic_status=
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    socket_path=$(find "$dynamic_sockets" -type s -name 'coralline-*' -print 2>/dev/null | sed -n '1p')
+    if [ -n "$socket_path" ]; then
+      dynamic_status=$(TMUX='' tmux -S "$socket_path" show-option -gv status 2>/dev/null || true)
+      [ "$dynamic_status" = 2 ] && break
+    fi
+    sleep 0.5
+  done
+  wait "$dynamic_pid" >/dev/null 2>&1 || true
+  [ "$dynamic_status" = 2 ] || fail "active agent did not expand tmux status to two rows: ${dynamic_status:-missing}"
+  pass 'tmux status expands for active agents and remains isolated'
 fi
 
 while IFS=$'\t' read -r theme _; do
@@ -90,6 +172,19 @@ assert_contains "$powerline" '#[fg=#51a6c7,bg=#46506e,nobold]' \
 assert_contains "$powerline" '#[fg=#46506e,bg=#1e1f2a,nobold]#[default]' \
   'powerline closes the final segment into the companion background'
 pass 'connected Powerline arrows render with continuous color transitions'
+
+tmux_escape_cache="$TEST_ROOT/tmux escape.env"
+cat > "$tmux_escape_cache" <<'EOF'
+CORALLINE_AGENT_COUNT=1
+CORALLINE_AGENT1_NAME=scout
+CORALLINE_AGENT1_TASK='Inspect #[fg=red] formatting'
+CORALLINE_AGENT1_STATUS=running
+EOF
+tmux_escape=$(CC_ASCII=off CORALLINE_AGENT_CACHE="$tmux_escape_cache" CORALLINE_CODEX_CONFIG=/dev/null \
+  "$ROOT/lib/render.sh" --tmux --agent 1 --width 160 --cwd "$TEST_ROOT")
+assert_contains "$tmux_escape" '##[fg=red]' 'agent task escapes tmux format markers'
+assert_not_contains "$tmux_escape" 'Inspect #[fg=red]' 'agent task cannot inject a tmux style'
+pass 'dynamic labels are escaped before entering the tmux format parser'
 
 width_output=$(CC_ASCII=on CORALLINE_CODEX_CONFIG=/dev/null \
   "$ROOT/lib/render.sh" --plain --width 30 --cwd "$TEST_ROOT/a directory with spaces/and-a-long-tail")
@@ -133,7 +228,15 @@ usage_dir="$TEST_ROOT/usage cache"
 mkdir -p "$usage_dir"
 cat > "$usage_dir/fake_codex.py" <<'PY'
 import json
+import os
 import sys
+from pathlib import Path
+capture = os.environ.get("CORALLINE_TEST_CAPTURE_ARGS")
+if capture:
+    Path(capture).write_text("\n".join(sys.argv[1:]) + "\n", encoding="utf-8")
+if "--version" in sys.argv:
+    print("codex-cli native-test")
+    raise SystemExit(0)
 for line in sys.stdin:
     message = json.loads(line)
     method = message.get("method")
@@ -235,6 +338,13 @@ usage_render=$(CC_ASCII=on CC_SEGMENTS='limits tokens' CORALLINE_CODEX_CONFIG=/d
 assert_contains "$usage_render" '7d ###-- 66% left' 'plan limit renders in companion bar'
 assert_contains "$usage_render" 'tok 123.4k in:120.0k out:3.4k' 'session tokens render in companion bar'
 pass 'rollout discovery and cached usage segments render'
+
+context_render=$(CC_ASCII=on CC_SEGMENTS='context reasoning' CORALLINE_CODEX_CONFIG=/dev/null \
+  CORALLINE_CONTEXT_USED=42000 CORALLINE_CONTEXT_WINDOW=200000 CORALLINE_REASONING=high \
+  "$ROOT/lib/render.sh" --plain --width 120 --cwd "$empty")
+assert_contains "$context_render" 'ctx #---- 21% 42.0k' 'current context usage renders from Codex token telemetry'
+assert_contains "$context_render" 'reason high' 'effective reasoning effort renders'
+pass 'Codex context and reasoning segments use authoritative session state'
 
 python3 - "$ROOT/lib/usage.py" "$rate_cache" <<'PY'
 import importlib.util
@@ -343,19 +453,76 @@ path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 PY
 watched_rate="$usage_dir/watched rate.env"
 watched_session="$usage_dir/watched session.env"
+watched_agents="$usage_dir/watched agents.env"
+cat >> "$watch_home/sessions/2026/07/20/rollout-watcher.jsonl" <<'EOF'
+{"timestamp":"2026-07-20T12:00:02Z","type":"event_msg","payload":{"type":"collab_agent_spawn_end","sender_thread_id":"test","new_thread_id":"child-1","new_agent_nickname":"scout","new_agent_role":"explorer","prompt":"Explore config sources","model":"gpt-5.4","reasoning_effort":"high","status":"running","completed_at_ms":1784548802000}}
+EOF
+cat > "$watch_home/sessions/2026/07/20/rollout-child.jsonl" <<EOF
+{"timestamp":"2026-07-20T12:00:02Z","type":"session_meta","payload":{"id":"child-1","parent_thread_id":"test","agent_nickname":"scout","agent_role":"explorer","agent_path":"scout","cwd":"$watch_cwd"}}
+{"timestamp":"2026-07-20T12:00:03Z","type":"turn_context","payload":{"model":"gpt-5.4","effort":"high"}}
+{"timestamp":"2026-07-20T12:00:03Z","type":"event_msg","payload":{"type":"task_started"}}
+{"timestamp":"2026-07-20T12:00:04Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":42000},"last_token_usage":{"total_tokens":42000},"model_context_window":200000}}}
+EOF
 python3 "$ROOT/lib/usage.py" watch --codex-bin "$fake_codex" --codex-home "$watch_home" \
   --rate-cache "$watched_rate" --session-cache "$watched_session" \
+  --agent-cache "$watched_agents" --agent-rows 3 \
   --start-epoch 0 --cwd "$watch_cwd" --pid $$ --interval 30 &
 watcher_pid=$!
 for _ in 1 2 3 4 5 6; do
-  if [ -f "$watched_session" ] && grep -q 'CORALLINE_SESSION_AVAILABLE=1' "$watched_session"; then break; fi
+  if [ -f "$watched_session" ] && [ -f "$watched_agents" ] && \
+    grep -q 'CORALLINE_SESSION_AVAILABLE=1' "$watched_session" && \
+    grep -q 'CORALLINE_AGENT_COUNT=1' "$watched_agents"; then break; fi
   sleep 0.5
 done
 kill "$watcher_pid" >/dev/null 2>&1 || true
 wait "$watcher_pid" >/dev/null 2>&1 || true
 assert_contains "$(< "$watched_session")" 'CORALLINE_SESSION_TOTAL=204000' 'watcher discovers the latest active rollout tokens'
 assert_contains "$(< "$watched_rate")" 'CORALLINE_LIMIT1_REMAINING=66' 'watcher refreshes account limits'
-pass 'background watcher combines account and active-session data'
+agent_values=$(< "$watched_agents")
+assert_contains "$agent_values" 'CORALLINE_AGENT1_NAME=scout' 'watcher maps the Codex agent nickname'
+assert_contains "$agent_values" 'CORALLINE_AGENT1_ROLE=explorer' 'watcher maps the Codex agent role'
+assert_contains "$agent_values" "CORALLINE_AGENT1_TASK='Explore config sources'" 'watcher maps the spawn task'
+assert_contains "$agent_values" 'CORALLINE_AGENT1_MODEL=gpt-5.4' 'watcher maps the effective agent model'
+assert_contains "$agent_values" 'CORALLINE_AGENT1_CONTEXT_USED=42000' 'watcher maps per-agent context use'
+agent_render=$(CC_ASCII=off CORALLINE_AGENT_CACHE="$watched_agents" CORALLINE_CODEX_CONFIG=/dev/null \
+  "$ROOT/lib/render.sh" --plain --agent 1 --width 180 --cwd "$watch_cwd")
+assert_contains "$agent_render" '● scout [explorer]' 'active agent identity renders'
+assert_contains "$agent_render" '◆ gpt-5.4 high' 'active agent model and reasoning render'
+assert_contains "$agent_render" '⬡ ▰▱▱▱▱ 21% 42.0k' 'active agent context gauge renders'
+pass 'background watcher combines account, session, and authoritative subagent data'
+
+agent_lifecycle=$(python3 - "$ROOT/lib/usage.py" <<'PY'
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("coralline_usage", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+assert module.display_text("safe\x1b[31m red") == "safe red"
+message_state = {"agent_path": "/root/scout"}
+module.apply_agent_event({
+    "type": "response_item",
+    "payload": {"type": "agent_message", "author": "/root", "recipient": "/root/scout",
+                "content": [{"type": "input_text", "text": "Inspect the status implementation"}]},
+}, message_state, {}, {})
+assert message_state["task"] == "Inspect the status implementation"
+states = {
+    "root": {"parent_id": "", "status": "running"},
+    "child": {"parent_id": "root", "name": "scout", "status": "running", "created_epoch": 1},
+    "nested": {"parent_id": "child", "name": "worker", "status": "running", "created_epoch": 2},
+    "done": {"parent_id": "root", "name": "done", "status": "completed", "created_epoch": 3},
+}
+values = module.agent_cache_values("root", states, {}, {}, 1)
+print(values["CORALLINE_AGENT_COUNT"], values["CORALLINE_AGENT_TOTAL_ACTIVE"],
+      values["CORALLINE_AGENT1_DESCENDANTS"], values["CORALLINE_AGENT1_OVERFLOW"])
+states["child"]["status"] = "completed"
+states["nested"]["status"] = "completed"
+collapsed = module.agent_cache_values("root", states, {}, {}, 3)
+print(collapsed["CORALLINE_AGENT_COUNT"])
+PY
+)
+[ "$agent_lifecycle" = $'1 2 1 1\n0' ] || fail 'agent rows did not aggregate overflow and collapse completed work'
+pass 'nested agent overflow is explicit and completed rows collapse cleanly'
 
 config_dir="$TEST_ROOT/config merge"
 mkdir -p "$config_dir/backups"
@@ -390,6 +557,8 @@ assert_contains "$wizard_config" 'CC_ASCII=on' 'wizard saved ASCII compatibility
 assert_contains "$wizard_config" "CC_SEGMENTS='limits tokens dir git elapsed clock'" 'wizard saved focused layout'
 assert_contains "$wizard_config" 'CC_USAGE_REFRESH=30' 'wizard saved usage refresh interval'
 assert_contains "$wizard_config" 'CC_USAGE_STALE_AFTER=60' 'wizard saved stale threshold'
+assert_contains "$wizard_config" 'CC_AGENTS=on' 'wizard preserved active agent rows'
+assert_contains "$wizard_config" 'CC_AGENT_ROWS=3' 'wizard preserved the agent row cap'
 assert_contains "$wizard_output" 'Final preview:' 'wizard rendered a final visual preview'
 configured_preview=$(TERM=xterm-256color CODEX_HOME="$wizard_home" "$ROOT/configure.sh" --preview)
 assert_contains "$configured_preview" '7d ' 'configured preview contains realistic quota data'
@@ -398,6 +567,33 @@ if CODEX_HOME="$wizard_home" "$ROOT/configure.sh" --segments 'limits invented' >
   fail 'configure accepted an unknown segment'
 fi
 pass 'visual wizard previews, validates, and persists a complete setup'
+
+native_home="$TEST_ROOT/native footer"
+mkdir -p "$native_home"
+native_config="$native_home/coralline-codex.conf"
+cat > "$native_config" <<'EOF'
+CC_THEME=claude-coral
+CC_NATIVE_STATUS=on
+CC_NATIVE_FIELDS='model-with-reasoning run-state task-progress'
+EOF
+native_capture="$native_home/args.txt"
+CORALLINE_CODEX_BIN="$fake_codex" CORALLINE_CODEX_CONFIG="$native_config" \
+  CORALLINE_TEST_CAPTURE_ARGS="$native_capture" CODEX_HOME="$native_home" \
+  "$ROOT/bin/coralline-codex" --no-companion --version >/dev/null
+native_args=$(< "$native_capture")
+assert_contains "$native_args" 'tui.status_line=["model-with-reasoning","run-state","task-progress"]' \
+  'native footer fields are passed as a scoped Codex override'
+python3 "$ROOT/lib/config.py" merge --config "$native_config" --backup-dir "$native_home/backups" \
+  CC_NATIVE_FIELDS=inherit >/dev/null
+CORALLINE_CODEX_BIN="$fake_codex" CORALLINE_CODEX_CONFIG="$native_config" \
+  CORALLINE_TEST_CAPTURE_ARGS="$native_capture" CODEX_HOME="$native_home" \
+  "$ROOT/bin/coralline-codex" --no-companion --version >/dev/null
+assert_not_contains "$(< "$native_capture")" 'tui.status_line=' 'inherit preserves the user native footer layout'
+if CORALLINE_CODEX_CONFIG="$native_config" CODEX_HOME="$native_home" \
+  "$ROOT/configure.sh" --native-fields 'model invented' >/dev/null 2>&1; then
+  fail 'configure accepted an unknown native footer field'
+fi
+pass 'native footer coverage is configurable, validated, and non-destructive'
 
 shell_dir="$TEST_ROOT/shell integration"
 mkdir -p "$shell_dir/backups"
@@ -466,6 +662,9 @@ assert_file "$codex_home/coralline-codex/VERSION" 'fresh install runtime'
 assert_file "$codex_home/coralline-codex/assets/hero.svg" 'fresh install README visual'
 assert_file "$codex_home/coralline-codex/lib/usage.py" 'fresh install usage watcher'
 assert_file "$codex_home/coralline-codex/lib/shell_integration.py" 'fresh install shell integration helper'
+assert_contains "$(< "$codex_home/coralline-codex.conf")" 'CC_AGENTS=on' 'fresh install enables Codex agent rows'
+assert_contains "$(< "$codex_home/coralline-codex.conf")" 'CC_AGENT_ROWS=3' 'fresh install caps agent rows safely'
+assert_contains "$(< "$codex_home/coralline-codex.conf")" 'task-progress' 'fresh install enables richer native footer coverage'
 if ((WINDOWS_SHELL)); then
   assert_file "$bin_dir/coralline-codex" 'fresh install Git Bash command shim'
   assert_contains "$(< "$bin_dir/coralline-codex")" 'coralline-codex managed Git Bash shim' 'Git Bash command shim is identifiable'
@@ -491,7 +690,7 @@ assert_not_contains "$(< "$codex_home/coralline-codex/VERSION")" 'local marker' 
 assert_contains "$upgrade_output" "Updated 0.1.0 -> $CURRENT_VERSION" 'upgrade reports the version transition'
 assert_contains "$upgrade_output" 'New in this release:' 'upgrade prints release highlights'
 assert_contains "$(< "$codex_home/coralline-codex.conf")" \
-  'CC_SEGMENTS='\''limits burn tokens dir git project node python model profile elapsed clock'\''' \
+  'CC_SEGMENTS='\''limits burn tokens context dir git stash project node python model reasoning profile elapsed clock'\''' \
   'upgrade migrated the previous default segment order'
 [ "$codex_config_hash" = "$(hash_file "$codex_home/config.toml")" ] || fail 'upgrade changed config.toml'
 pass 'upgrade replaces owned runtime and preserves Codex configuration'

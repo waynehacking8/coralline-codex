@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -30,6 +30,7 @@ except OSError:
 RPC_TIMEOUT = 15
 STOP = False
 ENV_KEY = re.compile(r"^[A-Z][A-Z0-9_]*$")
+ANSI_ESCAPE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\)|[@-_])")
 
 
 def atomic_env(path: Path, values: dict[str, Any]) -> None:
@@ -481,44 +482,305 @@ def process_open_files(pid: int) -> list[Path]:
     return [Path(line[1:]) for line in result.stdout.splitlines() if line.startswith("n/")]
 
 
-def rollout_from_pid(pid: int) -> Path | None:
+def rollouts_from_pid(pid: int) -> list[Path]:
     candidates: set[Path] = set()
     for process_id in process_tree(pid):
         for target in process_open_files(process_id):
             if target.name.startswith("rollout-") and target.suffix == ".jsonl" and target.is_file():
                 candidates.add(target)
-    if not candidates:
-        return None
-    return max(candidates, key=lambda path: path.stat().st_mtime)
+    return sorted(candidates, key=lambda path: path.stat().st_mtime, reverse=True)
 
 
-def rollout_meta(path: Path) -> tuple[float, str]:
+def rollout_from_pid(pid: int) -> Path | None:
+    candidates = rollouts_from_pid(pid)
+    return candidates[0] if candidates else None
+
+
+def rollout_metadata(path: Path) -> dict[str, Any]:
     try:
         with path.open(encoding="utf-8") as handle:
             first = json.loads(handle.readline())
     except (OSError, json.JSONDecodeError):
-        return 0, ""
+        return {}
     if first.get("type") != "session_meta" or not isinstance(first.get("payload"), dict):
-        return 0, ""
-    return parse_timestamp(first.get("timestamp")), str(first["payload"].get("cwd") or "")
+        return {}
+    payload = dict(first["payload"])
+    source = payload.get("source")
+    if isinstance(source, dict):
+        subagent = source.get("subAgent", source.get("sub_agent"))
+        if isinstance(subagent, dict):
+            spawn = subagent.get("thread_spawn", subagent.get("threadSpawn"))
+            if isinstance(spawn, dict):
+                for key, snake, camel in (
+                    ("parent_thread_id", "parent_thread_id", "parentThreadId"),
+                    ("agent_nickname", "agent_nickname", "agentNickname"),
+                    ("agent_role", "agent_role", "agentRole"),
+                ):
+                    if not payload.get(key):
+                        payload[key] = spawn.get(snake, spawn.get(camel))
+    payload["created_epoch"] = parse_timestamp(first.get("timestamp") or payload.get("timestamp"))
+    return payload
+
+
+def rollout_meta(path: Path) -> tuple[float, str]:
+    metadata = rollout_metadata(path)
+    return float(metadata.get("created_epoch") or 0), str(metadata.get("cwd") or "")
+
+
+def recent_rollouts(codex_home: Path, start_epoch: float) -> list[Path]:
+    """Limit discovery to date buckets that can contain this live session."""
+    sessions = codex_home / "sessions"
+    if not sessions.is_dir():
+        return []
+    buckets: set[tuple[int, int, int]] = set()
+    for base in (start_epoch, time.time()):
+        if base <= 0:
+            continue
+        for shifted in (base - 86400, base, base + 86400):
+            for value in (datetime.fromtimestamp(shifted), datetime.fromtimestamp(shifted, timezone.utc)):
+                buckets.add((value.year, value.month, value.day))
+    paths: list[Path] = []
+    for year, month, day in buckets:
+        directory = sessions / f"{year:04d}" / f"{month:02d}" / f"{day:02d}"
+        if directory.is_dir():
+            paths.extend(directory.glob("rollout-*.jsonl"))
+    return paths
+
+
+def normalize_agent_status(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict) and value:
+        return str(next(iter(value))).lower()
+    return ""
+
+
+def display_text(value: Any, limit: int = 160) -> str:
+    raw = ANSI_ESCAPE.sub("", str(value or ""))
+    text = "".join(character for character in raw if character.isprintable())
+    text = " ".join(text.split())
+    return text[:limit]
+
+
+def compact_prompt(value: Any, limit: int = 72) -> str:
+    text = display_text(value, max(limit * 2, limit))
+    if len(text) <= limit:
+        return text
+    return text[: max(1, limit - 1)].rstrip() + "…"
+
+
+def apply_agent_event(
+    event: dict[str, Any],
+    state: dict[str, Any],
+    spawns: dict[str, dict[str, Any]],
+    reported: dict[str, str],
+) -> None:
+    payload = event.get("payload")
+    if not isinstance(payload, dict):
+        return
+    record_type = event.get("type")
+    if record_type == "turn_context":
+        if payload.get("model"):
+            state["model"] = display_text(payload["model"])
+        effort = payload.get("effort", payload.get("reasoning_effort"))
+        if effort:
+            state["reasoning"] = display_text(effort)
+        return
+    if record_type == "response_item" and payload.get("type") == "agent_message":
+        agent_path = str(state.get("agent_path") or "")
+        if agent_path and str(payload.get("recipient") or "") == agent_path:
+            content = payload.get("content")
+            if isinstance(content, list):
+                task_parts = [
+                    item.get("text")
+                    for item in content
+                    if isinstance(item, dict) and item.get("type") == "input_text" and item.get("text")
+                ]
+                if task_parts:
+                    state["task"] = compact_prompt(" ".join(str(part) for part in task_parts))
+        return
+    if record_type != "event_msg":
+        return
+    event_type = payload.get("type")
+    timestamp = parse_timestamp(event.get("timestamp"))
+    if event_type in {"task_started", "turn_started"}:
+        state["status"] = "running"
+        state["started_epoch"] = timestamp or time.time()
+        context_window = payload.get("model_context_window", payload.get("modelContextWindow"))
+        if isinstance(context_window, (int, float)) and not isinstance(context_window, bool):
+            state["CORALLINE_CONTEXT_WINDOW"] = context_window
+    elif event_type in {"task_complete", "turn_complete"}:
+        state["status"] = "completed"
+    elif event_type == "error" and state.get("status") == "running":
+        state["status"] = "errored"
+    elif event_type == "token_count":
+        state.update(token_env(payload))
+    elif event_type == "collab_agent_spawn_end":
+        thread_id = str(payload.get("new_thread_id") or "")
+        if thread_id:
+            spawns[thread_id] = {
+                "parent_id": str(payload.get("sender_thread_id") or state.get("id") or ""),
+                "name": display_text(payload.get("new_agent_nickname")),
+                "role": display_text(payload.get("new_agent_role")),
+                "task": compact_prompt(payload.get("prompt")),
+                "model": display_text(payload.get("model")),
+                "reasoning": display_text(payload.get("reasoning_effort")),
+                "created_epoch": (float(payload.get("completed_at_ms") or 0) / 1000) or timestamp,
+            }
+            reported[thread_id] = normalize_agent_status(payload.get("status")) or "pending_init"
+    elif event_type == "collab_waiting_end":
+        statuses = payload.get("agent_statuses")
+        if isinstance(statuses, list):
+            for entry in statuses:
+                if isinstance(entry, dict) and entry.get("thread_id"):
+                    reported[str(entry["thread_id"])] = normalize_agent_status(entry.get("status"))
+        legacy_statuses = payload.get("statuses")
+        if isinstance(legacy_statuses, dict):
+            for thread_id, status in legacy_statuses.items():
+                reported[str(thread_id)] = normalize_agent_status(status)
+    elif event_type in {"collab_close_end", "collab_resume_end", "collab_agent_interaction_end"}:
+        thread_id = str(payload.get("receiver_thread_id") or "")
+        if thread_id:
+            reported[thread_id] = normalize_agent_status(payload.get("status"))
+
+
+def read_agent_updates(
+    path: Path,
+    offset: int,
+    state: dict[str, Any],
+    spawns: dict[str, dict[str, Any]],
+    reported: dict[str, str],
+) -> int:
+    try:
+        size = path.stat().st_size
+        if offset < 0 or offset > size:
+            offset = 0
+        with path.open("rb") as handle:
+            handle.seek(offset)
+            while True:
+                line_start = handle.tell()
+                line = handle.readline()
+                if not line:
+                    break
+                if not line.endswith(b"\n"):
+                    handle.seek(line_start)
+                    break
+                try:
+                    event = json.loads(line.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+                if isinstance(event, dict):
+                    apply_agent_event(event, state, spawns, reported)
+            return handle.tell()
+    except OSError:
+        return offset
+
+
+def is_descendant(thread_id: str, root_id: str, parents: dict[str, str]) -> bool:
+    current = thread_id
+    seen: set[str] = set()
+    while current and current not in seen:
+        if current == root_id:
+            return True
+        seen.add(current)
+        current = parents.get(current, "")
+    return False
+
+
+def agent_cache_values(
+    root_id: str,
+    states: dict[str, dict[str, Any]],
+    spawns: dict[str, dict[str, Any]],
+    reported: dict[str, str],
+    max_rows: int,
+) -> dict[str, Any]:
+    parents: dict[str, str] = {}
+    for thread_id, state in states.items():
+        parents[thread_id] = str(state.get("parent_id") or "")
+    for thread_id, spawn in spawns.items():
+        parents.setdefault(thread_id, str(spawn.get("parent_id") or ""))
+
+    active: list[tuple[str, dict[str, Any], dict[str, Any], str]] = []
+    all_ids = set(states) | set(spawns)
+    for thread_id in all_ids:
+        if thread_id == root_id or not is_descendant(thread_id, root_id, parents):
+            continue
+        state = states.get(thread_id, {})
+        spawn = spawns.get(thread_id, {})
+        state_status = str(state.get("status") or "")
+        reported_status = reported.get(thread_id, "")
+        if state_status in {"running", "completed", "errored"}:
+            status = state_status
+        else:
+            status = reported_status or state_status or "pending_init"
+        if status not in {"pending_init", "running"}:
+            continue
+        active.append((thread_id, state, spawn, status))
+    active.sort(key=lambda item: float(item[1].get("created_epoch") or item[2].get("created_epoch") or 0))
+
+    values: dict[str, Any] = {
+        "CORALLINE_AGENT_AVAILABLE": 1,
+        "CORALLINE_AGENT_COUNT": min(len(active), max_rows),
+        "CORALLINE_AGENT_TOTAL_ACTIVE": len(active),
+    }
+    visible = active[:max_rows]
+    for index, (thread_id, state, spawn, status) in enumerate(visible, 1):
+        prefix = f"CORALLINE_AGENT{index}_"
+        name = state.get("name") or spawn.get("name") or f"agent-{thread_id[:8]}"
+        descendants = sum(
+            1 for other_id, *_ in active
+            if other_id != thread_id and is_descendant(other_id, thread_id, parents)
+        )
+        context_used = state.get("CORALLINE_CONTEXT_USED", "")
+        context_window = state.get("CORALLINE_CONTEXT_WINDOW", "")
+        values.update(
+            {
+                prefix + "THREAD_ID": thread_id,
+                prefix + "NAME": name,
+                prefix + "ROLE": state.get("role") or spawn.get("role") or "",
+                prefix + "PATH": state.get("agent_path") or "",
+                prefix + "TASK": state.get("task") or spawn.get("task") or "",
+                prefix + "MODEL": state.get("model") or spawn.get("model") or "",
+                prefix + "REASONING": state.get("reasoning") or spawn.get("reasoning") or "",
+                prefix + "STATUS": status,
+                prefix + "START_EPOCH": state.get("started_epoch")
+                or state.get("created_epoch")
+                or spawn.get("created_epoch")
+                or "",
+                prefix + "TOTAL": state.get("CORALLINE_SESSION_TOTAL", ""),
+                prefix + "CONTEXT_USED": context_used,
+                prefix + "CONTEXT_WINDOW": context_window,
+                prefix + "DESCENDANTS": descendants,
+            }
+        )
+    if len(active) > max_rows and max_rows > 0:
+        values[f"CORALLINE_AGENT{max_rows}_OVERFLOW"] = len(active) - max_rows
+    return values
 
 
 def find_rollout(codex_home: Path, start_epoch: float, cwd: str, pid: int) -> Path | None:
-    by_pid = rollout_from_pid(pid)
-    if by_pid:
-        return by_pid
-    sessions = codex_home / "sessions"
-    if not sessions.is_dir():
-        return None
+    pid_candidates: list[tuple[float, Path]] = []
+    for path in rollouts_from_pid(pid):
+        metadata = rollout_metadata(path)
+        created = float(metadata.get("created_epoch") or 0)
+        if metadata.get("parent_thread_id") or str(metadata.get("cwd") or "") != cwd:
+            continue
+        if created >= start_epoch - 5:
+            pid_candidates.append((created, path))
+    if pid_candidates:
+        pid_candidates.sort(key=lambda item: (abs(item[0] - start_epoch), item[0]))
+        return pid_candidates[0][1]
     candidates: list[tuple[float, Path]] = []
-    for path in sessions.rglob("rollout-*.jsonl"):
+    for path in recent_rollouts(codex_home, start_epoch):
         try:
             if path.stat().st_mtime < start_epoch - 5:
                 continue
         except OSError:
             continue
-        created, session_cwd = rollout_meta(path)
-        if created >= start_epoch - 5 and session_cwd == cwd:
+        metadata = rollout_metadata(path)
+        created = float(metadata.get("created_epoch") or 0)
+        session_cwd = str(metadata.get("cwd") or "")
+        if created >= start_epoch - 5 and session_cwd == cwd and not metadata.get("parent_thread_id"):
             candidates.append((created, path))
     if not candidates:
         return None
@@ -540,6 +802,16 @@ def watch(args: argparse.Namespace) -> int:
     rollout_offset = 0
     last_discovery = 0.0
     last_token_values: dict[str, Any] | None = None
+    agent_paths: dict[Path, dict[str, Any]] = {}
+    agent_offsets: dict[Path, int] = {}
+    agent_states: dict[str, dict[str, Any]] = {}
+    agent_spawns: dict[str, dict[str, Any]] = {}
+    agent_reported: dict[str, str] = {}
+    last_agent_discovery = 0.0
+    last_agent_values: dict[str, Any] | None = None
+    root_id = ""
+    if args.agent_cache:
+        atomic_env(args.agent_cache, {"CORALLINE_AGENT_AVAILABLE": 1, "CORALLINE_AGENT_COUNT": 0, "CORALLINE_AGENT_TOTAL_ACTIVE": 0})
     while not STOP:
         now = time.monotonic()
         if now - last_rate >= args.interval:
@@ -560,6 +832,60 @@ def watch(args: argparse.Namespace) -> int:
             if values is not None and values != last_token_values:
                 atomic_env(args.session_cache, values)
                 last_token_values = values
+        if args.agent_cache and rollout is not None:
+            if now - last_agent_discovery >= 2:
+                metadata = rollout_metadata(rollout)
+                root_id = str(metadata.get("id") or metadata.get("session_id") or root_id)
+                sessions = args.codex_home / "sessions"
+                if sessions.is_dir():
+                    for path in recent_rollouts(args.codex_home, args.start_epoch):
+                        try:
+                            if path.stat().st_mtime < args.start_epoch - 5:
+                                continue
+                        except OSError:
+                            continue
+                        if path not in agent_paths:
+                            candidate = rollout_metadata(path)
+                            if candidate:
+                                agent_paths[path] = candidate
+                last_agent_discovery = now
+            if rollout not in agent_paths:
+                root_meta = rollout_metadata(rollout)
+                if root_meta:
+                    agent_paths[rollout] = root_meta
+            parents = {
+                str(meta.get("id") or meta.get("session_id") or ""): str(meta.get("parent_thread_id") or "")
+                for meta in agent_paths.values()
+            }
+            for path, metadata in list(agent_paths.items()):
+                thread_id = str(metadata.get("id") or metadata.get("session_id") or "")
+                if not thread_id or not root_id or not is_descendant(thread_id, root_id, parents):
+                    continue
+                state = agent_states.setdefault(
+                    thread_id,
+                    {
+                        "id": thread_id,
+                        "parent_id": str(metadata.get("parent_thread_id") or ""),
+                        "name": display_text(metadata.get("agent_nickname")),
+                        "role": display_text(metadata.get("agent_role") or metadata.get("agent_type")),
+                        "agent_path": display_text(metadata.get("agent_path")),
+                        "created_epoch": float(metadata.get("created_epoch") or 0),
+                        "status": "pending_init" if thread_id != root_id else "running",
+                    },
+                )
+                agent_offsets[path] = read_agent_updates(
+                    path,
+                    agent_offsets.get(path, 0),
+                    state,
+                    agent_spawns,
+                    agent_reported,
+                )
+            agent_values = agent_cache_values(
+                root_id, agent_states, agent_spawns, agent_reported, args.agent_rows
+            )
+            if agent_values != last_agent_values:
+                atomic_env(args.agent_cache, agent_values)
+                last_agent_values = agent_values
         time.sleep(1)
     return 0
 
@@ -643,6 +969,8 @@ def main() -> int:
     watcher.add_argument("--rate-cache", required=True, type=Path)
     watcher.add_argument("--history", type=Path)
     watcher.add_argument("--session-cache", required=True, type=Path)
+    watcher.add_argument("--agent-cache", type=Path)
+    watcher.add_argument("--agent-rows", type=int, choices=range(1, 5), default=3)
     watcher.add_argument("--start-epoch", required=True, type=float)
     watcher.add_argument("--cwd", required=True)
     watcher.add_argument("--pid", required=True, type=int)

@@ -6,6 +6,7 @@ MODE=ansi
 WIDTH=${COLUMNS:-0}
 CWD_VALUE=${PWD}
 STATE_FILE=
+AGENT_INDEX=0
 CONFIG_FILE=${CORALLINE_CODEX_CONFIG:-${CODEX_HOME:-$HOME/.codex}/coralline-codex.conf}
 
 while (($#)); do
@@ -15,9 +16,10 @@ while (($#)); do
     --width) shift; WIDTH=${1:?missing width} ;;
     --cwd) shift; CWD_VALUE=${1:?missing cwd} ;;
     --state) shift; STATE_FILE=${1:?missing state file} ;;
+    --agent) shift; AGENT_INDEX=${1:?missing agent row} ;;
     --config) shift; CONFIG_FILE=${1:?missing config file} ;;
     --help)
-      printf 'usage: render.sh [--tmux|--plain] [--width COLS] [--cwd DIR] [--state FILE]\n'
+      printf 'usage: render.sh [--tmux|--plain] [--width COLS] [--cwd DIR] [--state FILE] [--agent ROW]\n'
       exit 0 ;;
     *) printf 'coralline-codex render: unknown option: %s\n' "$1" >&2; exit 2 ;;
   esac
@@ -27,7 +29,7 @@ done
 : "${CC_THEME:=claude-coral}"
 : "${CC_STYLE:=powerline}"
 : "${CC_ASCII:=auto}"
-: "${CC_SEGMENTS:=limits burn tokens dir git project node python model profile elapsed clock}"
+: "${CC_SEGMENTS:=limits burn tokens context dir git stash project node python model reasoning profile elapsed clock}"
 : "${CC_NODE:=off}"
 : "${CC_PYTHON:=off}"
 : "${CC_RUNTIME_PROBE:=off}"
@@ -35,6 +37,8 @@ done
 : "${CC_NATIVE_STATUS:=on}"
 : "${CC_USAGE_REFRESH:=60}"
 : "${CC_USAGE_STALE_AFTER:=180}"
+: "${CC_AGENTS:=on}"
+: "${CC_AGENT_ROWS:=3}"
 # All sourced paths are explicit configuration/cache inputs.
 # shellcheck disable=SC1090
 [ -f "$CONFIG_FILE" ] && . "$CONFIG_FILE"
@@ -44,6 +48,10 @@ done
 [ -n "${CORALLINE_RATE_CACHE:-}" ] && [ -f "$CORALLINE_RATE_CACHE" ] && . "$CORALLINE_RATE_CACHE"
 # shellcheck disable=SC1090
 [ -n "${CORALLINE_SESSION_CACHE:-}" ] && [ -f "$CORALLINE_SESSION_CACHE" ] && . "$CORALLINE_SESSION_CACHE"
+# shellcheck disable=SC1090
+[ -n "${CORALLINE_AGENT_CACHE:-}" ] && [ -f "$CORALLINE_AGENT_CACHE" ] && . "$CORALLINE_AGENT_CACHE"
+
+[[ $AGENT_INDEX =~ ^[0-9]+$ ]] || { printf 'coralline-codex render: agent row must be numeric\n' >&2; exit 2; }
 
 case $CC_ASCII in
   on | 1 | true) ASCII=1 ;;
@@ -83,7 +91,7 @@ shorten_path() {
 }
 
 git_segments() {
-  SEG_GIT='' SEG_PROJECT='' GIT_DIRTY=0
+  SEG_GIT='' SEG_PROJECT='' SEG_STASH='' GIT_DIRTY=0
   local root status line branch='' staged=0 modified=0 untracked=0 ahead=0 behind=0
   root=$(git -C "$CWD_VALUE" rev-parse --show-toplevel 2>/dev/null) || return 0
   SEG_PROJECT=${root##*/}
@@ -110,6 +118,9 @@ git_segments() {
   ((ahead)) && SEG_GIT+=" ↑$ahead"
   ((behind)) && SEG_GIT+=" ↓$behind"
   ((staged || modified || untracked)) && GIT_DIRTY=1
+  local stash_count
+  stash_count=$(git -C "$CWD_VALUE" stash list 2>/dev/null | awk 'END { print NR + 0 }')
+  ((stash_count)) && SEG_STASH=$stash_count
 }
 
 node_segment() {
@@ -189,14 +200,83 @@ make_remaining_bar() {
   done
 }
 
+make_used_bar() {
+  local used=${1:-0} i filled
+  [[ $used =~ ^[0-9]+$ ]] || used=0
+  ((used < 0)) && used=0; ((used > 100)) && used=100
+  filled=$(((used * 5 + 50) / 100)); USED_BAR=
+  for ((i = 0; i < 5; i++)); do
+    if ((i < filled)); then [ "$ASCII" = 1 ] && USED_BAR+='#' || USED_BAR+='▰';
+    else [ "$ASCII" = 1 ] && USED_BAR+='-' || USED_BAR+='▱'; fi
+  done
+}
+
 indirect_value() {
   local variable=$1
   INDIRECT_VALUE=${!variable-}
 }
 
-git_segments
 declare -a LABELS=() COLORS=()
 add_segment() { [ -n "${1:-}" ] && { LABELS+=("$1"); COLORS+=("$2"); }; }
+if ((AGENT_INDEX > 0)); then
+  agent_prefix="CORALLINE_AGENT${AGENT_INDEX}_"
+  indirect_value "${agent_prefix}NAME"; agent_name=$INDIRECT_VALUE
+  indirect_value "${agent_prefix}ROLE"; agent_role=$INDIRECT_VALUE
+  indirect_value "${agent_prefix}TASK"; agent_task=$INDIRECT_VALUE
+  indirect_value "${agent_prefix}MODEL"; agent_model=$INDIRECT_VALUE
+  indirect_value "${agent_prefix}REASONING"; agent_reasoning=$INDIRECT_VALUE
+  indirect_value "${agent_prefix}STATUS"; agent_status=$INDIRECT_VALUE
+  indirect_value "${agent_prefix}START_EPOCH"; agent_start=$INDIRECT_VALUE
+  indirect_value "${agent_prefix}TOTAL"; agent_total=$INDIRECT_VALUE
+  indirect_value "${agent_prefix}CONTEXT_USED"; agent_context_used=$INDIRECT_VALUE
+  indirect_value "${agent_prefix}CONTEXT_WINDOW"; agent_context_window=$INDIRECT_VALUE
+  indirect_value "${agent_prefix}DESCENDANTS"; agent_descendants=$INDIRECT_VALUE
+  indirect_value "${agent_prefix}OVERFLOW"; agent_overflow=$INDIRECT_VALUE
+  [ -n "$agent_name" ] || exit 0
+  if [ "$ASCII" = 1 ]; then
+    [ "$agent_status" = pending_init ] && SEG_LABEL="pending $agent_name" || SEG_LABEL="agent $agent_name"
+  else
+    [ "$agent_status" = pending_init ] && SEG_LABEL="◌ $agent_name" || SEG_LABEL="● $agent_name"
+  fi
+  [ -n "$agent_role" ] && SEG_LABEL+=" [$agent_role]"
+  add_segment "$SEG_LABEL" "$C_PROJECT"
+  if [ -n "$agent_task" ] && ((WIDTH >= 72)); then
+    task_limit=$((WIDTH / 3)); ((task_limit > 42)) && task_limit=42
+    ((${#agent_task} > task_limit)) && agent_task="${agent_task:0:task_limit-1}…"
+    add_segment "$agent_task" "$C_DIR"
+  fi
+  SEG_LABEL=$agent_model
+  [ -n "$agent_reasoning" ] && SEG_LABEL+=" $agent_reasoning"
+  [ -n "$SEG_LABEL" ] && { [ "$ASCII" = 1 ] && SEG_LABEL="model $SEG_LABEL" || SEG_LABEL="◆ $SEG_LABEL"; }
+  add_segment "$SEG_LABEL" "$C_MODEL"
+  if [[ $agent_context_used =~ ^[0-9]+$ && $agent_context_window =~ ^[1-9][0-9]*$ ]]; then
+    agent_context_percent=$((agent_context_used * 100 / agent_context_window))
+    ((agent_context_percent > 100)) && agent_context_percent=100
+    make_used_bar "$agent_context_percent"
+    format_token_count "$agent_context_used"; agent_context_text=$TOKEN_TEXT
+    if [ "$ASCII" = 1 ]; then SEG_LABEL="ctx $USED_BAR ${agent_context_percent}% $agent_context_text";
+    else SEG_LABEL="⬡ $USED_BAR ${agent_context_percent}% $agent_context_text"; fi
+    add_segment "$SEG_LABEL" "$C_PROFILE"
+  elif [ -n "$agent_total" ]; then
+    format_token_count "$agent_total"
+    [ "$ASCII" = 1 ] && SEG_LABEL="tok $TOKEN_TEXT" || SEG_LABEL="Σ$TOKEN_TEXT"
+    add_segment "$SEG_LABEL" "$C_PROFILE"
+  fi
+  if [[ $agent_start =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    CORALLINE_START_EPOCH=${agent_start%.*}; format_elapsed
+    [ -n "$SEG_LABEL" ] && { [ "$ASCII" = 1 ] && SEG_LABEL="elapsed $SEG_LABEL" || SEG_LABEL="⧖ $SEG_LABEL"; }
+    add_segment "$SEG_LABEL" "$C_DURATION"
+  fi
+  if [[ $agent_descendants =~ ^[1-9][0-9]*$ ]]; then
+    [ "$ASCII" = 1 ] && SEG_LABEL="children $agent_descendants" || SEG_LABEL="↳$agent_descendants"
+    add_segment "$SEG_LABEL" "$C_DIM"
+  fi
+  if [[ $agent_overflow =~ ^[1-9][0-9]*$ ]]; then
+    SEG_LABEL="+$agent_overflow agents"
+    add_segment "$SEG_LABEL" "$C_GIT_DIRTY"
+  fi
+else
+git_segments
 for segment in $CC_SEGMENTS; do
   SEG_LABEL='' COLOR=$C_FG
   case $segment in
@@ -263,6 +343,17 @@ for segment in $CC_SEGMENTS; do
         fi
       fi
       COLOR=$C_MODEL ;;
+    context)
+      SEG_LABEL=
+      if [[ ${CORALLINE_CONTEXT_USED:-} =~ ^[0-9]+$ && ${CORALLINE_CONTEXT_WINDOW:-} =~ ^[1-9][0-9]*$ ]]; then
+        context_percent=$((CORALLINE_CONTEXT_USED * 100 / CORALLINE_CONTEXT_WINDOW))
+        ((context_percent > 100)) && context_percent=100
+        make_used_bar "$context_percent"
+        format_token_count "$CORALLINE_CONTEXT_USED"; context_text=$TOKEN_TEXT
+        if [ "$ASCII" = 1 ]; then SEG_LABEL="ctx $USED_BAR ${context_percent}% $context_text";
+        else SEG_LABEL="⬡ $USED_BAR ${context_percent}% $context_text"; fi
+      fi
+      COLOR=$C_PROFILE ;;
     burn)
       if [ "${CORALLINE_RATE_AVAILABLE:-0}" = 1 ]; then
         for ((limit_index = 1; limit_index <= ${CORALLINE_LIMIT_COUNT:-0}; limit_index++)); do
@@ -303,7 +394,9 @@ for segment in $CC_SEGMENTS; do
       continue ;;
     node) node_segment; COLOR=$C_NODE ;;
     python) python_segment; COLOR=$C_PYTHON ;;
+    stash) SEG_LABEL=$SEG_STASH; [ -n "$SEG_LABEL" ] && { [ "$ASCII" = 1 ] && SEG_LABEL="stash $SEG_LABEL" || SEG_LABEL="≡ $SEG_LABEL"; }; COLOR=$C_PROFILE ;;
     model) SEG_LABEL=${CORALLINE_MODEL:-}; [ -n "$SEG_LABEL" ] && SEG_LABEL="model $SEG_LABEL"; COLOR=$C_MODEL ;;
+    reasoning) SEG_LABEL=${CORALLINE_REASONING:-}; [[ -n "$SEG_LABEL" && $SEG_LABEL != auto ]] && SEG_LABEL="reason $SEG_LABEL" || SEG_LABEL=; COLOR=$C_MODEL ;;
     profile) SEG_LABEL=${CORALLINE_PROFILE:-}; [ -n "$SEG_LABEL" ] && SEG_LABEL="profile $SEG_LABEL"; COLOR=$C_PROFILE ;;
     elapsed) format_elapsed; [ -n "$SEG_LABEL" ] && { [ "$ASCII" = 1 ] && SEG_LABEL="elapsed $SEG_LABEL" || SEG_LABEL="⧖ $SEG_LABEL"; }; COLOR=$C_DURATION ;;
     clock) printf -v SEG_LABEL '%(%H:%M)T' -1 2>/dev/null || SEG_LABEL=$(date +%H:%M); [ "$ASCII" = 1 ] && SEG_LABEL="time $SEG_LABEL" || SEG_LABEL="◷ $SEG_LABEL"; COLOR=$C_CLOCK ;;
@@ -311,6 +404,7 @@ for segment in $CC_SEGMENTS; do
   esac
   add_segment "$SEG_LABEL" "$COLOR"
 done
+fi
 
 declare -a KEEP_LABELS=() KEEP_COLORS=()
 used=0
@@ -335,6 +429,7 @@ for i in "${!KEEP_LABELS[@]}"; do
     [ -n "$out" ] && out+=' | '
     out+=$label
   elif [ "$MODE" = tmux ]; then
+    label=${label//'#'/'##'}
     if [ "$ASCII" = 1 ]; then
       out+="#[fg=$color,bold][ $label ]#[default] "
     elif [ "$CC_STYLE" = powerline ]; then
