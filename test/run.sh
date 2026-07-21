@@ -521,6 +521,7 @@ collapsed = module.agent_cache_values("root", states, {}, {}, 3)
 print(collapsed["CORALLINE_AGENT_COUNT"])
 PY
 )
+agent_lifecycle=${agent_lifecycle//$'\r'/}
 [ "$agent_lifecycle" = $'1 2 1 1\n0' ] || fail 'agent rows did not aggregate overflow and collapse completed work'
 pass 'nested agent overflow is explicit and completed rows collapse cleanly'
 
