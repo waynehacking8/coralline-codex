@@ -12,9 +12,12 @@
 ## What you get
 
 ```text
-● scout [explorer]  Explore config sources  ◆ gpt-5.4 high  ⬡ ▰▱▱▱▱ 21% 42.0k  ⧖ 2m05s 
-7d ▰▰▰▰▱ 79% ↺1d11h  Σ123.4k ↑120.0k ↓3.4k  ⬡ ▰▱▱▱▱ 21% 42.0k  ~/dev/coralline-codex   main+!?  ◷ 16:53 
+agent: scout [explorer] | Explore config sources | model gpt-5.4 high | context 21% 42.0k | elapsed 2m05s
+bar:   7d 79% reset 1d11h | tokens 123.4k | context 21% | ~/dev/coralline-codex | git main+!? | 16:53
 ```
+
+The README preview uses portable ASCII labels so it renders consistently on
+GitHub. The live terminal uses the selected Powerline or ASCII style.
 
 | Segment | Shows |
 |---|---|

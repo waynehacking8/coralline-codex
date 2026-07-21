@@ -9,69 +9,69 @@ text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation M
 <text x="667" y="39" fill="#969baf" font-size="20" text-anchor="middle">coralline codex — native footer + active agent rows</text>
 <line x1="20" y1="62" x2="1314" y2="62" stroke="#262b3d"/>
 <text x="40" y="101" fill="#636a87" font-size="15" font-weight="700">CLAUDE-CORAL</text>
-<path d="M 40 112 H 276 L 297 133 L 276 154 H 40 Z" fill="#51a6c7"/><text x="59" y="140" fill="#ffffff" font-size="18" font-weight="700">● scout [explorer]</text>
-<path d="M 276 112 L 297 133 L 276 154 H 556 L 577 133 L 556 112 Z" fill="#51a6c7"/><text x="306" y="140" fill="#ffffff" font-size="18" font-weight="700">Explore config sources</text>
-<path d="M 556 112 L 577 133 L 556 154 H 748 L 769 133 L 748 112 Z" fill="#af5f5f"/><text x="586" y="140" fill="#ffffff" font-size="18" font-weight="700">◆ gpt-5.4 high</text>
-<path d="M 748 112 L 769 133 L 748 154 H 973 L 994 133 L 973 112 Z" fill="#8d6cab"/><text x="778" y="140" fill="#ffffff" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21% 42.0k</text>
-<path d="M 973 112 L 994 133 L 973 154 H 1088 L 1109 133 L 1088 112 Z" fill="#5f5faf"/><text x="1003" y="140" fill="#ffffff" font-size="18" font-weight="700">⧖ 2m05s</text>
-<path d="M 40 164 H 287 L 308 185 L 287 206 H 40 Z" fill="#5faf5f"/><text x="59" y="192" fill="#ffffff" font-size="18" font-weight="700">7d ▰▰▰▰▱ 79% ↺1d11h</text>
-<path d="M 287 164 L 308 185 L 287 206 H 402 L 423 185 L 402 164 Z" fill="#af5f5f"/><text x="317" y="192" fill="#ffffff" font-size="18" font-weight="700">Σ123.4k</text>
-<path d="M 402 164 L 423 185 L 402 206 H 561 L 582 185 L 561 164 Z" fill="#8d6cab"/><text x="432" y="192" fill="#ffffff" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21%</text>
-<path d="M 561 164 L 582 185 L 561 206 H 698 L 719 185 L 698 164 Z" fill="#af5faf"/><text x="591" y="192" fill="#ffffff" font-size="18" font-weight="700"> main+!?</text>
-<path d="M 698 164 L 719 185 L 698 206 H 813 L 834 185 L 813 164 Z" fill="#46506e"/><text x="728" y="192" fill="#ffffff" font-size="18" font-weight="700">◷ 16:53</text>
+<path d="M 40 112 H 254 L 275 133 L 254 154 H 40 Z" fill="#51a6c7"/><text x="59" y="140" fill="#ffffff" font-size="18" font-weight="700">scout [explorer]</text>
+<path d="M 254 112 L 275 133 L 254 154 H 534 L 555 133 L 534 112 Z" fill="#51a6c7"/><text x="284" y="140" fill="#ffffff" font-size="18" font-weight="700">Explore config sources</text>
+<path d="M 534 112 L 555 133 L 534 154 H 704 L 725 133 L 704 112 Z" fill="#af5f5f"/><text x="564" y="140" fill="#ffffff" font-size="18" font-weight="700">gpt-5.4 high</text>
+<path d="M 704 112 L 725 133 L 704 154 H 929 L 950 133 L 929 112 Z" fill="#8d6cab"/><text x="734" y="140" fill="#ffffff" font-size="18" font-weight="700">context 21% 42.0k</text>
+<path d="M 929 112 L 950 133 L 929 154 H 1110 L 1131 133 L 1110 112 Z" fill="#5f5faf"/><text x="959" y="140" fill="#ffffff" font-size="18" font-weight="700">elapsed 2m05s</text>
+<path d="M 40 164 H 276 L 297 185 L 276 206 H 40 Z" fill="#5faf5f"/><text x="59" y="192" fill="#ffffff" font-size="18" font-weight="700">7d 79% reset 1d11h</text>
+<path d="M 276 164 L 297 185 L 276 206 H 457 L 478 185 L 457 164 Z" fill="#af5f5f"/><text x="306" y="192" fill="#ffffff" font-size="18" font-weight="700">tokens 123.4k</text>
+<path d="M 457 164 L 478 185 L 457 206 H 616 L 637 185 L 616 164 Z" fill="#8d6cab"/><text x="487" y="192" fill="#ffffff" font-size="18" font-weight="700">context 21%</text>
+<path d="M 616 164 L 637 185 L 616 206 H 775 L 796 185 L 775 164 Z" fill="#af5faf"/><text x="646" y="192" fill="#ffffff" font-size="18" font-weight="700">git main+!?</text>
+<path d="M 775 164 L 796 185 L 775 206 H 923 L 944 185 L 923 164 Z" fill="#46506e"/><text x="805" y="192" fill="#ffffff" font-size="18" font-weight="700">time 16:53</text>
 <text x="40" y="249" fill="#636a87" font-size="15" font-weight="700">CATPPUCCIN-MOCHA</text>
-<path d="M 40 260 H 276 L 297 281 L 276 302 H 40 Z" fill="#89b4fa"/><text x="59" y="288" fill="#1e1e2e" font-size="18" font-weight="700">● scout [explorer]</text>
-<path d="M 276 260 L 297 281 L 276 302 H 556 L 577 281 L 556 260 Z" fill="#89b4fa"/><text x="306" y="288" fill="#1e1e2e" font-size="18" font-weight="700">Explore config sources</text>
-<path d="M 556 260 L 577 281 L 556 302 H 748 L 769 281 L 748 260 Z" fill="#cba6f7"/><text x="586" y="288" fill="#1e1e2e" font-size="18" font-weight="700">◆ gpt-5.4 high</text>
-<path d="M 748 260 L 769 281 L 748 302 H 973 L 994 281 L 973 260 Z" fill="#f5c2e7"/><text x="778" y="288" fill="#1e1e2e" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21% 42.0k</text>
-<path d="M 973 260 L 994 281 L 973 302 H 1088 L 1109 281 L 1088 260 Z" fill="#94e2d5"/><text x="1003" y="288" fill="#1e1e2e" font-size="18" font-weight="700">⧖ 2m05s</text>
-<path d="M 40 312 H 287 L 308 333 L 287 354 H 40 Z" fill="#a6e3a1"/><text x="59" y="340" fill="#1e1e2e" font-size="18" font-weight="700">7d ▰▰▰▰▱ 79% ↺1d11h</text>
-<path d="M 287 312 L 308 333 L 287 354 H 402 L 423 333 L 402 312 Z" fill="#cba6f7"/><text x="317" y="340" fill="#1e1e2e" font-size="18" font-weight="700">Σ123.4k</text>
-<path d="M 402 312 L 423 333 L 402 354 H 561 L 582 333 L 561 312 Z" fill="#f5c2e7"/><text x="432" y="340" fill="#1e1e2e" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21%</text>
-<path d="M 561 312 L 582 333 L 561 354 H 698 L 719 333 L 698 312 Z" fill="#fab387"/><text x="591" y="340" fill="#1e1e2e" font-size="18" font-weight="700"> main+!?</text>
-<path d="M 698 312 L 719 333 L 698 354 H 813 L 834 333 L 813 312 Z" fill="#74c7ec"/><text x="728" y="340" fill="#1e1e2e" font-size="18" font-weight="700">◷ 16:53</text>
+<path d="M 40 260 H 254 L 275 281 L 254 302 H 40 Z" fill="#89b4fa"/><text x="59" y="288" fill="#1e1e2e" font-size="18" font-weight="700">scout [explorer]</text>
+<path d="M 254 260 L 275 281 L 254 302 H 534 L 555 281 L 534 260 Z" fill="#89b4fa"/><text x="284" y="288" fill="#1e1e2e" font-size="18" font-weight="700">Explore config sources</text>
+<path d="M 534 260 L 555 281 L 534 302 H 704 L 725 281 L 704 260 Z" fill="#cba6f7"/><text x="564" y="288" fill="#1e1e2e" font-size="18" font-weight="700">gpt-5.4 high</text>
+<path d="M 704 260 L 725 281 L 704 302 H 929 L 950 281 L 929 260 Z" fill="#f5c2e7"/><text x="734" y="288" fill="#1e1e2e" font-size="18" font-weight="700">context 21% 42.0k</text>
+<path d="M 929 260 L 950 281 L 929 302 H 1110 L 1131 281 L 1110 260 Z" fill="#94e2d5"/><text x="959" y="288" fill="#1e1e2e" font-size="18" font-weight="700">elapsed 2m05s</text>
+<path d="M 40 312 H 276 L 297 333 L 276 354 H 40 Z" fill="#a6e3a1"/><text x="59" y="340" fill="#1e1e2e" font-size="18" font-weight="700">7d 79% reset 1d11h</text>
+<path d="M 276 312 L 297 333 L 276 354 H 457 L 478 333 L 457 312 Z" fill="#cba6f7"/><text x="306" y="340" fill="#1e1e2e" font-size="18" font-weight="700">tokens 123.4k</text>
+<path d="M 457 312 L 478 333 L 457 354 H 616 L 637 333 L 616 312 Z" fill="#f5c2e7"/><text x="487" y="340" fill="#1e1e2e" font-size="18" font-weight="700">context 21%</text>
+<path d="M 616 312 L 637 333 L 616 354 H 775 L 796 333 L 775 312 Z" fill="#fab387"/><text x="646" y="340" fill="#1e1e2e" font-size="18" font-weight="700">git main+!?</text>
+<path d="M 775 312 L 796 333 L 775 354 H 923 L 944 333 L 923 312 Z" fill="#74c7ec"/><text x="805" y="340" fill="#1e1e2e" font-size="18" font-weight="700">time 16:53</text>
 <text x="40" y="397" fill="#636a87" font-size="15" font-weight="700">NORD</text>
-<path d="M 40 408 H 276 L 297 429 L 276 450 H 40 Z" fill="#8fbcbb"/><text x="59" y="436" fill="#2e3440" font-size="18" font-weight="700">● scout [explorer]</text>
-<path d="M 276 408 L 297 429 L 276 450 H 556 L 577 429 L 556 408 Z" fill="#88c0d0"/><text x="306" y="436" fill="#2e3440" font-size="18" font-weight="700">Explore config sources</text>
-<path d="M 556 408 L 577 429 L 556 450 H 748 L 769 429 L 748 408 Z" fill="#b48ead"/><text x="586" y="436" fill="#2e3440" font-size="18" font-weight="700">◆ gpt-5.4 high</text>
-<path d="M 748 408 L 769 429 L 748 450 H 973 L 994 429 L 973 408 Z" fill="#d08770"/><text x="778" y="436" fill="#2e3440" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21% 42.0k</text>
-<path d="M 973 408 L 994 429 L 973 450 H 1088 L 1109 429 L 1088 408 Z" fill="#81a1c1"/><text x="1003" y="436" fill="#2e3440" font-size="18" font-weight="700">⧖ 2m05s</text>
-<path d="M 40 460 H 287 L 308 481 L 287 502 H 40 Z" fill="#a3be8c"/><text x="59" y="488" fill="#2e3440" font-size="18" font-weight="700">7d ▰▰▰▰▱ 79% ↺1d11h</text>
-<path d="M 287 460 L 308 481 L 287 502 H 402 L 423 481 L 402 460 Z" fill="#b48ead"/><text x="317" y="488" fill="#2e3440" font-size="18" font-weight="700">Σ123.4k</text>
-<path d="M 402 460 L 423 481 L 402 502 H 561 L 582 481 L 561 460 Z" fill="#d08770"/><text x="432" y="488" fill="#2e3440" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21%</text>
-<path d="M 561 460 L 582 481 L 561 502 H 698 L 719 481 L 698 460 Z" fill="#ebcb8b"/><text x="591" y="488" fill="#2e3440" font-size="18" font-weight="700"> main+!?</text>
-<path d="M 698 460 L 719 481 L 698 502 H 813 L 834 481 L 813 460 Z" fill="#81a1c1"/><text x="728" y="488" fill="#2e3440" font-size="18" font-weight="700">◷ 16:53</text>
+<path d="M 40 408 H 254 L 275 429 L 254 450 H 40 Z" fill="#8fbcbb"/><text x="59" y="436" fill="#2e3440" font-size="18" font-weight="700">scout [explorer]</text>
+<path d="M 254 408 L 275 429 L 254 450 H 534 L 555 429 L 534 408 Z" fill="#88c0d0"/><text x="284" y="436" fill="#2e3440" font-size="18" font-weight="700">Explore config sources</text>
+<path d="M 534 408 L 555 429 L 534 450 H 704 L 725 429 L 704 408 Z" fill="#b48ead"/><text x="564" y="436" fill="#2e3440" font-size="18" font-weight="700">gpt-5.4 high</text>
+<path d="M 704 408 L 725 429 L 704 450 H 929 L 950 429 L 929 408 Z" fill="#d08770"/><text x="734" y="436" fill="#2e3440" font-size="18" font-weight="700">context 21% 42.0k</text>
+<path d="M 929 408 L 950 429 L 929 450 H 1110 L 1131 429 L 1110 408 Z" fill="#81a1c1"/><text x="959" y="436" fill="#2e3440" font-size="18" font-weight="700">elapsed 2m05s</text>
+<path d="M 40 460 H 276 L 297 481 L 276 502 H 40 Z" fill="#a3be8c"/><text x="59" y="488" fill="#2e3440" font-size="18" font-weight="700">7d 79% reset 1d11h</text>
+<path d="M 276 460 L 297 481 L 276 502 H 457 L 478 481 L 457 460 Z" fill="#b48ead"/><text x="306" y="488" fill="#2e3440" font-size="18" font-weight="700">tokens 123.4k</text>
+<path d="M 457 460 L 478 481 L 457 502 H 616 L 637 481 L 616 460 Z" fill="#d08770"/><text x="487" y="488" fill="#2e3440" font-size="18" font-weight="700">context 21%</text>
+<path d="M 616 460 L 637 481 L 616 502 H 775 L 796 481 L 775 460 Z" fill="#ebcb8b"/><text x="646" y="488" fill="#2e3440" font-size="18" font-weight="700">git main+!?</text>
+<path d="M 775 460 L 796 481 L 775 502 H 923 L 944 481 L 923 460 Z" fill="#81a1c1"/><text x="805" y="488" fill="#2e3440" font-size="18" font-weight="700">time 16:53</text>
 <text x="40" y="545" fill="#636a87" font-size="15" font-weight="700">GRUVBOX-DARK</text>
-<path d="M 40 556 H 276 L 297 577 L 276 598 H 40 Z" fill="#458588"/><text x="59" y="584" fill="#ebdbb2" font-size="18" font-weight="700">● scout [explorer]</text>
-<path d="M 276 556 L 297 577 L 276 598 H 556 L 577 577 L 556 556 Z" fill="#458588"/><text x="306" y="584" fill="#ebdbb2" font-size="18" font-weight="700">Explore config sources</text>
-<path d="M 556 556 L 577 577 L 556 598 H 748 L 769 577 L 748 556 Z" fill="#b16286"/><text x="586" y="584" fill="#ebdbb2" font-size="18" font-weight="700">◆ gpt-5.4 high</text>
-<path d="M 748 556 L 769 577 L 748 598 H 973 L 994 577 L 973 556 Z" fill="#d79921"/><text x="778" y="584" fill="#ebdbb2" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21% 42.0k</text>
-<path d="M 973 556 L 994 577 L 973 598 H 1088 L 1109 577 L 1088 556 Z" fill="#7c6f64"/><text x="1003" y="584" fill="#ebdbb2" font-size="18" font-weight="700">⧖ 2m05s</text>
-<path d="M 40 608 H 287 L 308 629 L 287 650 H 40 Z" fill="#689d6a"/><text x="59" y="636" fill="#ebdbb2" font-size="18" font-weight="700">7d ▰▰▰▰▱ 79% ↺1d11h</text>
-<path d="M 287 608 L 308 629 L 287 650 H 402 L 423 629 L 402 608 Z" fill="#b16286"/><text x="317" y="636" fill="#ebdbb2" font-size="18" font-weight="700">Σ123.4k</text>
-<path d="M 402 608 L 423 629 L 402 650 H 561 L 582 629 L 561 608 Z" fill="#d79921"/><text x="432" y="636" fill="#ebdbb2" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21%</text>
-<path d="M 561 608 L 582 629 L 561 650 H 698 L 719 629 L 698 608 Z" fill="#d65d0e"/><text x="591" y="636" fill="#ebdbb2" font-size="18" font-weight="700"> main+!?</text>
-<path d="M 698 608 L 719 629 L 698 650 H 813 L 834 629 L 813 608 Z" fill="#504945"/><text x="728" y="636" fill="#ebdbb2" font-size="18" font-weight="700">◷ 16:53</text>
+<path d="M 40 556 H 254 L 275 577 L 254 598 H 40 Z" fill="#458588"/><text x="59" y="584" fill="#ebdbb2" font-size="18" font-weight="700">scout [explorer]</text>
+<path d="M 254 556 L 275 577 L 254 598 H 534 L 555 577 L 534 556 Z" fill="#458588"/><text x="284" y="584" fill="#ebdbb2" font-size="18" font-weight="700">Explore config sources</text>
+<path d="M 534 556 L 555 577 L 534 598 H 704 L 725 577 L 704 556 Z" fill="#b16286"/><text x="564" y="584" fill="#ebdbb2" font-size="18" font-weight="700">gpt-5.4 high</text>
+<path d="M 704 556 L 725 577 L 704 598 H 929 L 950 577 L 929 556 Z" fill="#d79921"/><text x="734" y="584" fill="#ebdbb2" font-size="18" font-weight="700">context 21% 42.0k</text>
+<path d="M 929 556 L 950 577 L 929 598 H 1110 L 1131 577 L 1110 556 Z" fill="#7c6f64"/><text x="959" y="584" fill="#ebdbb2" font-size="18" font-weight="700">elapsed 2m05s</text>
+<path d="M 40 608 H 276 L 297 629 L 276 650 H 40 Z" fill="#689d6a"/><text x="59" y="636" fill="#ebdbb2" font-size="18" font-weight="700">7d 79% reset 1d11h</text>
+<path d="M 276 608 L 297 629 L 276 650 H 457 L 478 629 L 457 608 Z" fill="#b16286"/><text x="306" y="636" fill="#ebdbb2" font-size="18" font-weight="700">tokens 123.4k</text>
+<path d="M 457 608 L 478 629 L 457 650 H 616 L 637 629 L 616 608 Z" fill="#d79921"/><text x="487" y="636" fill="#ebdbb2" font-size="18" font-weight="700">context 21%</text>
+<path d="M 616 608 L 637 629 L 616 650 H 775 L 796 629 L 775 608 Z" fill="#d65d0e"/><text x="646" y="636" fill="#ebdbb2" font-size="18" font-weight="700">git main+!?</text>
+<path d="M 775 608 L 796 629 L 775 650 H 923 L 944 629 L 923 608 Z" fill="#504945"/><text x="805" y="636" fill="#ebdbb2" font-size="18" font-weight="700">time 16:53</text>
 <text x="40" y="693" fill="#636a87" font-size="15" font-weight="700">TOKYO-NIGHT</text>
-<path d="M 40 704 H 276 L 297 725 L 276 746 H 40 Z" fill="#7dcfff"/><text x="59" y="732" fill="#1a1b26" font-size="18" font-weight="700">● scout [explorer]</text>
-<path d="M 276 704 L 297 725 L 276 746 H 556 L 577 725 L 556 704 Z" fill="#7aa2f7"/><text x="306" y="732" fill="#1a1b26" font-size="18" font-weight="700">Explore config sources</text>
-<path d="M 556 704 L 577 725 L 556 746 H 748 L 769 725 L 748 704 Z" fill="#bb9af7"/><text x="586" y="732" fill="#1a1b26" font-size="18" font-weight="700">◆ gpt-5.4 high</text>
-<path d="M 748 704 L 769 725 L 748 746 H 973 L 994 725 L 973 704 Z" fill="#ff9e64"/><text x="778" y="732" fill="#1a1b26" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21% 42.0k</text>
-<path d="M 973 704 L 994 725 L 973 746 H 1088 L 1109 725 L 1088 704 Z" fill="#73daca"/><text x="1003" y="732" fill="#1a1b26" font-size="18" font-weight="700">⧖ 2m05s</text>
-<path d="M 40 756 H 287 L 308 777 L 287 798 H 40 Z" fill="#9ece6a"/><text x="59" y="784" fill="#1a1b26" font-size="18" font-weight="700">7d ▰▰▰▰▱ 79% ↺1d11h</text>
-<path d="M 287 756 L 308 777 L 287 798 H 402 L 423 777 L 402 756 Z" fill="#bb9af7"/><text x="317" y="784" fill="#1a1b26" font-size="18" font-weight="700">Σ123.4k</text>
-<path d="M 402 756 L 423 777 L 402 798 H 561 L 582 777 L 561 756 Z" fill="#ff9e64"/><text x="432" y="784" fill="#1a1b26" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21%</text>
-<path d="M 561 756 L 582 777 L 561 798 H 698 L 719 777 L 698 756 Z" fill="#e0af68"/><text x="591" y="784" fill="#1a1b26" font-size="18" font-weight="700"> main+!?</text>
-<path d="M 698 756 L 719 777 L 698 798 H 813 L 834 777 L 813 756 Z" fill="#7dcfff"/><text x="728" y="784" fill="#1a1b26" font-size="18" font-weight="700">◷ 16:53</text>
+<path d="M 40 704 H 254 L 275 725 L 254 746 H 40 Z" fill="#7dcfff"/><text x="59" y="732" fill="#1a1b26" font-size="18" font-weight="700">scout [explorer]</text>
+<path d="M 254 704 L 275 725 L 254 746 H 534 L 555 725 L 534 704 Z" fill="#7aa2f7"/><text x="284" y="732" fill="#1a1b26" font-size="18" font-weight="700">Explore config sources</text>
+<path d="M 534 704 L 555 725 L 534 746 H 704 L 725 725 L 704 704 Z" fill="#bb9af7"/><text x="564" y="732" fill="#1a1b26" font-size="18" font-weight="700">gpt-5.4 high</text>
+<path d="M 704 704 L 725 725 L 704 746 H 929 L 950 725 L 929 704 Z" fill="#ff9e64"/><text x="734" y="732" fill="#1a1b26" font-size="18" font-weight="700">context 21% 42.0k</text>
+<path d="M 929 704 L 950 725 L 929 746 H 1110 L 1131 725 L 1110 704 Z" fill="#73daca"/><text x="959" y="732" fill="#1a1b26" font-size="18" font-weight="700">elapsed 2m05s</text>
+<path d="M 40 756 H 276 L 297 777 L 276 798 H 40 Z" fill="#9ece6a"/><text x="59" y="784" fill="#1a1b26" font-size="18" font-weight="700">7d 79% reset 1d11h</text>
+<path d="M 276 756 L 297 777 L 276 798 H 457 L 478 777 L 457 756 Z" fill="#bb9af7"/><text x="306" y="784" fill="#1a1b26" font-size="18" font-weight="700">tokens 123.4k</text>
+<path d="M 457 756 L 478 777 L 457 798 H 616 L 637 777 L 616 756 Z" fill="#ff9e64"/><text x="487" y="784" fill="#1a1b26" font-size="18" font-weight="700">context 21%</text>
+<path d="M 616 756 L 637 777 L 616 798 H 775 L 796 777 L 775 756 Z" fill="#e0af68"/><text x="646" y="784" fill="#1a1b26" font-size="18" font-weight="700">git main+!?</text>
+<path d="M 775 756 L 796 777 L 775 798 H 923 L 944 777 L 923 756 Z" fill="#7dcfff"/><text x="805" y="784" fill="#1a1b26" font-size="18" font-weight="700">time 16:53</text>
 <text x="40" y="841" fill="#636a87" font-size="15" font-weight="700">MONO</text>
-<path d="M 40 852 H 276 L 297 873 L 276 894 H 40 Z" fill="#a8a8a8"/><text x="59" y="880" fill="#ffffff" font-size="18" font-weight="700">● scout [explorer]</text>
-<path d="M 276 852 L 297 873 L 276 894 H 556 L 577 873 L 556 852 Z" fill="#808080"/><text x="306" y="880" fill="#ffffff" font-size="18" font-weight="700">Explore config sources</text>
-<path d="M 556 852 L 577 873 L 556 894 H 748 L 769 873 L 748 852 Z" fill="#9e9e9e"/><text x="586" y="880" fill="#ffffff" font-size="18" font-weight="700">◆ gpt-5.4 high</text>
-<path d="M 748 852 L 769 873 L 748 894 H 973 L 994 873 L 973 852 Z" fill="#d0d0d0"/><text x="778" y="880" fill="#ffffff" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21% 42.0k</text>
-<path d="M 973 852 L 994 873 L 973 894 H 1088 L 1109 873 L 1088 852 Z" fill="#767676"/><text x="1003" y="880" fill="#ffffff" font-size="18" font-weight="700">⧖ 2m05s</text>
-<path d="M 40 904 H 287 L 308 925 L 287 946 H 40 Z" fill="#8a8a8a"/><text x="59" y="932" fill="#ffffff" font-size="18" font-weight="700">7d ▰▰▰▰▱ 79% ↺1d11h</text>
-<path d="M 287 904 L 308 925 L 287 946 H 402 L 423 925 L 402 904 Z" fill="#9e9e9e"/><text x="317" y="932" fill="#ffffff" font-size="18" font-weight="700">Σ123.4k</text>
-<path d="M 402 904 L 423 925 L 402 946 H 561 L 582 925 L 561 904 Z" fill="#d0d0d0"/><text x="432" y="932" fill="#ffffff" font-size="18" font-weight="700">⬡ ▰▱▱▱▱ 21%</text>
-<path d="M 561 904 L 582 925 L 561 946 H 698 L 719 925 L 698 904 Z" fill="#bcbcbc"/><text x="591" y="932" fill="#ffffff" font-size="18" font-weight="700"> main+!?</text>
-<path d="M 698 904 L 719 925 L 698 946 H 813 L 834 925 L 813 904 Z" fill="#8a8a8a"/><text x="728" y="932" fill="#ffffff" font-size="18" font-weight="700">◷ 16:53</text>
+<path d="M 40 852 H 254 L 275 873 L 254 894 H 40 Z" fill="#a8a8a8"/><text x="59" y="880" fill="#ffffff" font-size="18" font-weight="700">scout [explorer]</text>
+<path d="M 254 852 L 275 873 L 254 894 H 534 L 555 873 L 534 852 Z" fill="#808080"/><text x="284" y="880" fill="#ffffff" font-size="18" font-weight="700">Explore config sources</text>
+<path d="M 534 852 L 555 873 L 534 894 H 704 L 725 873 L 704 852 Z" fill="#9e9e9e"/><text x="564" y="880" fill="#ffffff" font-size="18" font-weight="700">gpt-5.4 high</text>
+<path d="M 704 852 L 725 873 L 704 894 H 929 L 950 873 L 929 852 Z" fill="#d0d0d0"/><text x="734" y="880" fill="#ffffff" font-size="18" font-weight="700">context 21% 42.0k</text>
+<path d="M 929 852 L 950 873 L 929 894 H 1110 L 1131 873 L 1110 852 Z" fill="#767676"/><text x="959" y="880" fill="#ffffff" font-size="18" font-weight="700">elapsed 2m05s</text>
+<path d="M 40 904 H 276 L 297 925 L 276 946 H 40 Z" fill="#8a8a8a"/><text x="59" y="932" fill="#ffffff" font-size="18" font-weight="700">7d 79% reset 1d11h</text>
+<path d="M 276 904 L 297 925 L 276 946 H 457 L 478 925 L 457 904 Z" fill="#9e9e9e"/><text x="306" y="932" fill="#ffffff" font-size="18" font-weight="700">tokens 123.4k</text>
+<path d="M 457 904 L 478 925 L 457 946 H 616 L 637 925 L 616 904 Z" fill="#d0d0d0"/><text x="487" y="932" fill="#ffffff" font-size="18" font-weight="700">context 21%</text>
+<path d="M 616 904 L 637 925 L 616 946 H 775 L 796 925 L 775 904 Z" fill="#bcbcbc"/><text x="646" y="932" fill="#ffffff" font-size="18" font-weight="700">git main+!?</text>
+<path d="M 775 904 L 796 925 L 775 946 H 923 L 944 925 L 923 904 Z" fill="#8a8a8a"/><text x="805" y="932" fill="#ffffff" font-size="18" font-weight="700">time 16:53</text>
 </svg>

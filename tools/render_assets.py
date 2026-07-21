@@ -109,18 +109,18 @@ def render_hero(palettes: list[dict[str, str]]) -> str:
         )
         rows = (
             (
-                ("● scout [explorer]", "project"),
+                ("scout [explorer]", "project"),
                 ("Explore config sources", "directory"),
-                ("◆ gpt-5.4 high", "model"),
-                ("⬡ ▰▱▱▱▱ 21% 42.0k", "profile"),
-                ("⧖ 2m05s", "duration"),
+                ("gpt-5.4 high", "model"),
+                ("context 21% 42.0k", "profile"),
+                ("elapsed 2m05s", "duration"),
             ),
             (
-                ("7d ▰▰▰▰▱ 79% ↺1d11h", "git_ok"),
-                ("Σ123.4k", "model"),
-                ("⬡ ▰▱▱▱▱ 21%", "profile"),
-                (" main+!?", "git_dirty"),
-                ("◷ 16:53", "clock"),
+                ("7d 79% reset 1d11h", "git_ok"),
+                ("tokens 123.4k", "model"),
+                ("context 21%", "profile"),
+                ("git main+!?", "git_dirty"),
+                ("time 16:53", "clock"),
             ),
         )
         for row_index, segments in enumerate(rows):
@@ -157,7 +157,7 @@ def render_themes(palettes: list[dict[str, str]]) -> str:
         body.append(f'<rect x="{x}" y="{y}" width="344" height="104" rx="14" fill="{esc(palette["background"])}" stroke="#343745"/>')
         body.append(f'<text x="{x + 18}" y="{y + 29}" fill="#ffffff" font-size="14" font-weight="700">{esc(palette["name"])}</text>')
         px = x + 18
-        for segment_index, (label, key) in enumerate((("94%", "git_ok"), ("Σ12.4k", "model"), ("main", "directory"))):
+        for segment_index, (label, key) in enumerate((("94%", "git_ok"), ("tok 12.4k", "model"), ("main", "directory"))):
             item, item_width = powerline_segment(
                 px,
                 y + 48,

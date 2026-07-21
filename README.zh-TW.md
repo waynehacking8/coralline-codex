@@ -12,8 +12,12 @@
 ## 效果
 
 ```text
-7d ▰▰▰▰▱ 79% ↺1d11h  ↗7d 4d12h  Σ123.4k ↑120.0k ↓3.4k  ~/dev/coralline-codex   main+!?  ◆ gpt-5.6  ⧖ 47m  ◷ 16:53 
+agent: scout [explorer] | Explore config sources | model gpt-5.4 high | context 21% 42.0k | elapsed 2m05s
+bar:   7d 79% reset 1d11h | tokens 123.4k | context 21% | ~/dev/coralline-codex | git main+!? | 16:53
 ```
+
+README 預覽採用相容性較高的 ASCII 標籤，確保 GitHub 能正常顯示；實際
+terminal 仍會依設定使用 Powerline 或 ASCII 樣式。
 
 | 區段 | 顯示內容 |
 |---|---|
