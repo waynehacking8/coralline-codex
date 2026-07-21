@@ -59,7 +59,7 @@ fi
 
 bash -n "$ROOT/bin/coralline-codex" "$ROOT/lib/render.sh" "$ROOT/configure.sh" \
   "$ROOT/install.sh" "$ROOT/test/verify-install.sh" "$0"
-python3 -c 'import pathlib,sys; [compile(pathlib.Path(p).read_text(), p, "exec") for p in sys.argv[1:]]' \
+python3 -c 'import pathlib,sys; [compile(pathlib.Path(p).read_text(encoding="utf-8"), p, "exec") for p in sys.argv[1:]]' \
   "$ROOT/lib/config.py" "$ROOT/lib/shell_integration.py" "$ROOT/lib/usage.py" \
   "$ROOT/tools/generate_themes.py" "$ROOT/tools/render_assets.py"
 python3 "$ROOT/tools/render_assets.py" --check >/dev/null
