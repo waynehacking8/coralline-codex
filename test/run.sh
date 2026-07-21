@@ -578,7 +578,9 @@ CC_NATIVE_STATUS=on
 CC_NATIVE_FIELDS='model-with-reasoning run-state task-progress'
 EOF
 native_capture="$native_home/args.txt"
-CORALLINE_CODEX_BIN="$fake_codex" CORALLINE_CODEX_CONFIG="$native_config" \
+native_codex=$fake_codex
+if ((WINDOWS_SHELL)); then native_codex=$TEST_ROOT/test-bin/codex; fi
+CORALLINE_CODEX_BIN="$native_codex" CORALLINE_CODEX_CONFIG="$native_config" \
   CORALLINE_TEST_CAPTURE_ARGS="$native_capture" CODEX_HOME="$native_home" \
   "$ROOT/bin/coralline-codex" --no-companion --version >/dev/null
 native_args=$(< "$native_capture")
@@ -586,7 +588,7 @@ assert_contains "$native_args" 'tui.status_line=["model-with-reasoning","run-sta
   'native footer fields are passed as a scoped Codex override'
 python3 "$ROOT/lib/config.py" merge --config "$native_config" --backup-dir "$native_home/backups" \
   CC_NATIVE_FIELDS=inherit >/dev/null
-CORALLINE_CODEX_BIN="$fake_codex" CORALLINE_CODEX_CONFIG="$native_config" \
+CORALLINE_CODEX_BIN="$native_codex" CORALLINE_CODEX_CONFIG="$native_config" \
   CORALLINE_TEST_CAPTURE_ARGS="$native_capture" CODEX_HOME="$native_home" \
   "$ROOT/bin/coralline-codex" --no-companion --version >/dev/null
 assert_not_contains "$(< "$native_capture")" 'tui.status_line=' 'inherit preserves the user native footer layout'
