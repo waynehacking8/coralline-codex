@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 - 2026-07-22
+
+- Write the managed shell hook with the Codex binary path as given instead of
+  resolving symlinks, so a version-managed install (such as the standalone
+  `current` link) keeps launching the latest Codex after self-updates rather
+  than pinning the hook to one release path and re-triggering the update
+  prompt on every launch.
+
 ## 0.3.0 - 2026-07-21
 
 - Add dynamic Codex subagent rows with nickname, role, task, effective model and

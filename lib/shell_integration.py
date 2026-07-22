@@ -129,9 +129,11 @@ def load_state(codex_home: Path) -> dict:
 def install(args: argparse.Namespace) -> int:
     shell = default_shell(args.shell)
     rc = args.rc or default_rc(shell)
-    wrapper = args.wrapper.resolve()
-    codex_bin = args.codex_bin.resolve()
-    if wrapper == codex_bin:
+    # Keep symlinks (such as a version-managed `current` link) unresolved so the
+    # hook keeps working after Codex self-updates swap the target underneath.
+    wrapper = args.wrapper.expanduser().absolute()
+    codex_bin = args.codex_bin.expanduser().absolute()
+    if wrapper.resolve() == codex_bin.resolve():
         raise ValueError("wrapper and real Codex binary resolve to the same path")
     if not wrapper.exists() or not os.access(wrapper, os.X_OK):
         raise ValueError(f"wrapper is not executable: {wrapper}")
