@@ -651,8 +651,8 @@ python3 "$ROOT/lib/shell_integration.py" install --codex-home "$shell_state_home
   --wrapper "$shell_wrapper" --codex-bin "$shell_codex" >/dev/null
 [ "$hook_hash" = "$(hash_file "$shell_rc")" ] || fail 'shell hook installation is not idempotent'
 hook_run=$(bash -c 'source "$1"; codex --yolo' _ "$shell_rc")
-shell_codex_resolved=$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve())' "$shell_codex")
-assert_contains "$hook_run" "wrapper:$shell_codex_resolved:--yolo" 'managed hook routes codex through wrapper'
+shell_codex_absolute=$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).expanduser().absolute())' "$shell_codex")
+assert_contains "$hook_run" "wrapper:$shell_codex_absolute:--yolo" 'managed hook routes codex through wrapper'
 bypass_run=$(CORALLINE_CODEX_DISABLE=1 bash -c 'source "$1"; codex --version' _ "$shell_rc")
 assert_contains "$bypass_run" 'real:--version' 'managed hook supports an explicit bypass'
 python3 "$ROOT/lib/shell_integration.py" status --codex-home "$shell_state_home" \
