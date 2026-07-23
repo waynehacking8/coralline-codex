@@ -276,10 +276,13 @@ pass 'official app-server rate-limit protocol and cache mapping'
 rollout="$usage_dir/rollout-test.jsonl"
 cat > "$rollout" <<'EOF'
 {"timestamp":"2026-07-20T12:00:00Z","type":"session_meta","payload":{"id":"test","cwd":"/tmp/project"}}
+{"timestamp":"2026-07-20T12:00:00Z","type":"turn_context","payload":{"turn_id":"t1","cwd":"/tmp/project","model":"gpt-5.6-codex","effort":"medium","summary":"auto"}}
 {"timestamp":"2026-07-20T12:00:01Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":120000,"cached_input_tokens":80000,"output_tokens":3456,"total_tokens":123456},"last_token_usage":{"total_tokens":22000},"model_context_window":258400}}}
 EOF
 session_cache="$usage_dir/session tokens.env"
 python3 "$ROOT/lib/usage.py" extract --rollout "$rollout" --session-cache "$session_cache"
+assert_contains "$(< "$session_cache")" 'CORALLINE_MODEL=gpt-5.6-codex' 'extract maps the effective session model'
+assert_contains "$(< "$session_cache")" 'CORALLINE_REASONING=medium' 'extract maps the effective reasoning effort'
 incremental=$(python3 - "$ROOT/lib/usage.py" "$rollout" <<'PY'
 import importlib.util
 import json
@@ -290,21 +293,29 @@ spec = importlib.util.spec_from_file_location("coralline_usage", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 path = Path(sys.argv[2])
-offset, initial = module.read_rollout_updates(path)
+offset, initial, initial_settings = module.read_rollout_updates(path)
 event = {"type": "event_msg", "payload": {"type": "token_count", "info": {
     "total_token_usage": {"input_tokens": 200000, "output_tokens": 4000, "total_tokens": 204000}
 }}}
 with path.open("ab") as handle:
     handle.write(json.dumps(event).encode())
-partial_offset, partial = module.read_rollout_updates(path, offset)
+partial_offset, partial, _ = module.read_rollout_updates(path, offset)
 with path.open("ab") as handle:
     handle.write(b"\n")
-final_offset, final = module.read_rollout_updates(path, partial_offset)
+final_offset, final, _ = module.read_rollout_updates(path, partial_offset)
+switch = {"type": "event_msg", "payload": {"type": "thread_settings_applied", "thread_settings": {
+    "model": "gpt-5.6-luna", "reasoning_effort": "low"
+}}}
+with path.open("ab") as handle:
+    handle.write(json.dumps(switch).encode() + b"\n")
+_, _, switched = module.read_rollout_updates(path, final_offset)
 print(initial["CORALLINE_SESSION_TOTAL"], partial is None, partial_offset == offset,
-      final["CORALLINE_SESSION_TOTAL"], final_offset > offset)
+      final["CORALLINE_SESSION_TOTAL"], final_offset > offset,
+      initial_settings["CORALLINE_MODEL"], switched["CORALLINE_MODEL"], switched["CORALLINE_REASONING"])
 PY
 )
-[ "$incremental" = '123456 True True 204000 True' ] || fail 'incremental rollout tailing mishandled a partial JSONL record'
+[ "$incremental" = '123456 True True 204000 True gpt-5.6-codex gpt-5.6-luna low' ] || \
+  fail 'incremental rollout tailing mishandled a partial JSONL record or a model switch'
 if ((WINDOWS_SHELL == 0)) && [ "$(uname -s)" = Linux ]; then
   pid_rollout=$(python3 - "$ROOT/lib/usage.py" "$rollout" <<'PY'
 import importlib.util
@@ -332,11 +343,14 @@ PY
   [ "$pid_rollout" = "$rollout" ] || fail 'rollout discovery did not traverse the Codex launcher process tree'
 fi
 state="$usage_dir/state.env"
-printf 'CORALLINE_RATE_CACHE=%q\nCORALLINE_SESSION_CACHE=%q\n' "$rate_cache" "$session_cache" > "$state"
-usage_render=$(CC_ASCII=on CC_SEGMENTS='limits tokens' CORALLINE_CODEX_CONFIG=/dev/null \
+printf 'CORALLINE_RATE_CACHE=%q\nCORALLINE_SESSION_CACHE=%q\nCORALLINE_MODEL=launch-model\n' \
+  "$rate_cache" "$session_cache" > "$state"
+usage_render=$(CC_ASCII=on CC_SEGMENTS='limits tokens model reasoning' CORALLINE_CODEX_CONFIG=/dev/null \
   "$ROOT/lib/render.sh" --plain --width 160 --cwd "$empty" --state "$state")
 assert_contains "$usage_render" '7d ###-- 66% left' 'plan limit renders in companion bar'
 assert_contains "$usage_render" 'tok 123.4k in:120.0k out:3.4k' 'session tokens render in companion bar'
+assert_contains "$usage_render" 'model gpt-5.6-codex' 'live session model overrides the launch-time model'
+assert_contains "$usage_render" 'reason medium' 'live reasoning effort renders from the session cache'
 pass 'rollout discovery and cached usage segments render'
 
 context_render=$(CC_ASCII=on CC_SEGMENTS='context reasoning' CORALLINE_CODEX_CONFIG=/dev/null \
@@ -435,11 +449,12 @@ compact_width=$(python3 -c 'import sys; print(len(sys.stdin.read().rstrip("\n"))
 pass 'critical usage data adapts down to a 30-column terminal'
 
 watch_home="$usage_dir/watcher home"
-mkdir -p "$watch_home/sessions/2026/07/20"
-cp "$rollout" "$watch_home/sessions/2026/07/20/rollout-watcher.jsonl"
+watch_bucket=$(date +%Y/%m/%d)
+mkdir -p "$watch_home/sessions/$watch_bucket"
+cp "$rollout" "$watch_home/sessions/$watch_bucket/rollout-watcher.jsonl"
 watch_cwd="$TEST_ROOT/watcher project"
 mkdir -p "$watch_cwd"
-python3 - "$watch_home/sessions/2026/07/20/rollout-watcher.jsonl" "$watch_cwd" <<'PY'
+python3 - "$watch_home/sessions/$watch_bucket/rollout-watcher.jsonl" "$watch_cwd" <<'PY'
 import json
 from pathlib import Path
 import sys
@@ -454,10 +469,11 @@ PY
 watched_rate="$usage_dir/watched rate.env"
 watched_session="$usage_dir/watched session.env"
 watched_agents="$usage_dir/watched agents.env"
-cat >> "$watch_home/sessions/2026/07/20/rollout-watcher.jsonl" <<'EOF'
+cat >> "$watch_home/sessions/$watch_bucket/rollout-watcher.jsonl" <<'EOF'
 {"timestamp":"2026-07-20T12:00:02Z","type":"event_msg","payload":{"type":"collab_agent_spawn_end","sender_thread_id":"test","new_thread_id":"child-1","new_agent_nickname":"scout","new_agent_role":"explorer","prompt":"Explore config sources","model":"gpt-5.4","reasoning_effort":"high","status":"running","completed_at_ms":1784548802000}}
+{"timestamp":"2026-07-20T12:00:05Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol","reasoning_effort":"xhigh"}}}
 EOF
-cat > "$watch_home/sessions/2026/07/20/rollout-child.jsonl" <<EOF
+cat > "$watch_home/sessions/$watch_bucket/rollout-child.jsonl" <<EOF
 {"timestamp":"2026-07-20T12:00:02Z","type":"session_meta","payload":{"id":"child-1","parent_thread_id":"test","agent_nickname":"scout","agent_role":"explorer","agent_path":"scout","cwd":"$watch_cwd"}}
 {"timestamp":"2026-07-20T12:00:03Z","type":"turn_context","payload":{"model":"gpt-5.4","effort":"high"}}
 {"timestamp":"2026-07-20T12:00:03Z","type":"event_msg","payload":{"type":"task_started"}}
@@ -477,6 +493,8 @@ done
 kill "$watcher_pid" >/dev/null 2>&1 || true
 wait "$watcher_pid" >/dev/null 2>&1 || true
 assert_contains "$(< "$watched_session")" 'CORALLINE_SESSION_TOTAL=204000' 'watcher discovers the latest active rollout tokens'
+assert_contains "$(< "$watched_session")" 'CORALLINE_MODEL=gpt-5.6-sol' 'watcher propagates a mid-session model switch'
+assert_contains "$(< "$watched_session")" 'CORALLINE_REASONING=xhigh' 'watcher propagates a mid-session reasoning switch'
 assert_contains "$(< "$watched_rate")" 'CORALLINE_LIMIT1_REMAINING=66' 'watcher refreshes account limits'
 agent_values=$(< "$watched_agents")
 assert_contains "$agent_values" 'CORALLINE_AGENT1_NAME=scout' 'watcher maps the Codex agent nickname'

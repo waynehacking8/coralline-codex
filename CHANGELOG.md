@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2 - 2026-07-23
+
+- Reflect in-session `/model` switches in the companion bar within seconds by
+  reading `thread_settings_applied` and `turn_context` records from the live
+  rollout, instead of showing the launch-time model until restart.
+- Fix the watcher test fixture to use today's session date bucket so rollout
+  discovery keeps working after the day the fixture was written.
+
 ## 0.3.1 - 2026-07-22
 
 - Write the managed shell hook with the Codex binary path as given instead of

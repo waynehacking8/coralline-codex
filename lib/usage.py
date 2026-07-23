@@ -369,9 +369,24 @@ def token_env(payload: dict) -> dict[str, Any]:
     }
 
 
-def read_rollout_updates(path: Path, offset: int = 0) -> tuple[int, dict[str, Any] | None]:
-    """Read complete JSONL records from offset and return the newest token event."""
+def settings_env(payload: dict) -> dict[str, Any]:
+    """Map a turn_context or thread_settings_applied payload to companion variables."""
+    source = payload.get("thread_settings")
+    if not isinstance(source, dict):
+        source = payload
+    values: dict[str, Any] = {}
+    if source.get("model"):
+        values["CORALLINE_MODEL"] = display_text(source["model"])
+    effort = source.get("reasoning_effort", source.get("effort"))
+    if effort:
+        values["CORALLINE_REASONING"] = display_text(effort)
+    return values
+
+
+def read_rollout_updates(path: Path, offset: int = 0) -> tuple[int, dict[str, Any] | None, dict[str, Any]]:
+    """Read complete JSONL records from offset and return the newest token and settings state."""
     latest: dict[str, Any] | None = None
+    settings: dict[str, Any] = {}
     try:
         size = path.stat().st_size
         if offset < 0 or offset > size:
@@ -391,21 +406,26 @@ def read_rollout_updates(path: Path, offset: int = 0) -> tuple[int, dict[str, An
                 except (UnicodeDecodeError, json.JSONDecodeError):
                     continue
                 payload = event.get("payload")
-                if (
-                    event.get("type") == "event_msg"
-                    and isinstance(payload, dict)
-                    and payload.get("type") == "token_count"
-                ):
+                if not isinstance(payload, dict):
+                    continue
+                record_type = event.get("type")
+                if record_type == "event_msg" and payload.get("type") == "token_count":
                     latest = token_env(payload)
+                elif record_type == "turn_context" or (
+                    record_type == "event_msg" and payload.get("type") == "thread_settings_applied"
+                ):
+                    settings.update(settings_env(payload))
             offset = handle.tell()
     except OSError:
-        return offset, latest
-    return offset, latest
+        return offset, latest, settings
+    return offset, latest, settings
 
 
 def extract_rollout(path: Path) -> dict[str, Any]:
-    _, latest = read_rollout_updates(path)
-    return latest or {"CORALLINE_SESSION_AVAILABLE": 0}
+    _, latest, settings = read_rollout_updates(path)
+    values = latest or {"CORALLINE_SESSION_AVAILABLE": 0}
+    values.update(settings)
+    return values
 
 
 def parse_timestamp(value: Any) -> float:
@@ -802,6 +822,8 @@ def watch(args: argparse.Namespace) -> int:
     rollout_offset = 0
     last_discovery = 0.0
     last_token_values: dict[str, Any] | None = None
+    session_settings: dict[str, Any] = {}
+    last_session_values: dict[str, Any] = {"CORALLINE_SESSION_AVAILABLE": 0}
     agent_paths: dict[Path, dict[str, Any]] = {}
     agent_offsets: dict[Path, int] = {}
     agent_states: dict[str, dict[str, Any]] = {}
@@ -827,11 +849,17 @@ def watch(args: argparse.Namespace) -> int:
                 rollout = discovered
                 rollout_offset = 0
                 last_token_values = None
+                session_settings = {}
         if rollout is not None:
-            rollout_offset, values = read_rollout_updates(rollout, rollout_offset)
-            if values is not None and values != last_token_values:
-                atomic_env(args.session_cache, values)
+            rollout_offset, values, settings = read_rollout_updates(rollout, rollout_offset)
+            if values is not None:
                 last_token_values = values
+            session_settings.update(settings)
+            merged = dict(last_token_values or {"CORALLINE_SESSION_AVAILABLE": 0})
+            merged.update(session_settings)
+            if merged != last_session_values:
+                atomic_env(args.session_cache, merged)
+                last_session_values = merged
         if args.agent_cache and rollout is not None:
             if now - last_agent_discovery >= 2:
                 metadata = rollout_metadata(rollout)
