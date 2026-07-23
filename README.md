@@ -30,7 +30,7 @@ GitHub. The live terminal uses the selected Powerline or ASCII style.
 | `git` | branch, staged `+`, modified `!`, untracked `?`, ahead `↑`, and behind `↓` state |
 | `stash` | Git stash count; hidden when zero |
 | `node` / `python` | pinned or active runtime environment; opt-in and hidden when undetected |
-| `model` / `reasoning` / `profile` | launch-time Codex model, reasoning effort, and profile when available |
+| `model` / `reasoning` / `profile` | live session model and reasoning effort (launch-time until the first turn lands), and the launch-time profile |
 | `elapsed` | session wall-clock duration |
 | `clock` | local 24-hour time |
 
@@ -207,9 +207,12 @@ uploaded by Coralline. A projection is explicitly labeled as warming up until a
 sufficient baseline exists; it is an estimate, not a promise from OpenAI.
 
 The native Codex footer remains authoritative for live context percentage,
-model, and reasoning effort. If `/model` changes the model during a session, the
-native footer updates while the optional companion model label remains the
-launch-time value.
+model, and reasoning effort. The companion model and reasoning labels follow
+in-session `/model` switches within a couple of seconds by reading the session
+rollout. The one blind window is a switch made before the first message of a
+fresh session: Codex only creates the rollout on the first turn, so the
+companion shows the launch-time value until the first response starts, then
+catches up on its own.
 
 See [Codex feature coverage](docs/CODEX-COVERAGE.md) for the supported-field
 matrix, deliberate exclusions, and related Codex status projects surveyed.

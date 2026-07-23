@@ -28,12 +28,15 @@ terminal 仍會依設定使用 Powerline 或 ASCII 樣式。
 | `project` | repo 名稱；不在 Git repo 時隱藏 |
 | `git` | 分支、已暫存 `+`、已修改 `!`、未追蹤 `?`、領先 `↑` 及落後 `↓` 狀態 |
 | `node` / `python` | 固定版本或目前 runtime 環境；需手動開啟，偵測不到時隱藏 |
-| `model` / `profile` | 啟動時可取得的 Codex model 與 profile |
+| `model` / `profile` | 即時 session model（首個 turn 前為啟動值）與啟動時的 profile |
 | `elapsed` | session 經過時間 |
 | `clock` | 本地 24 小時制時鐘 |
 
 Codex 原生 footer 仍是即時 model、推理強度、剩餘 context、limits 與 used
-tokens 的權威來源。Companion 補上原生 footer 沒有的欄位，並可逐步壓縮至
+tokens 的權威來源。Session 中以 `/model` 切換後，companion 的 model 標籤
+會在數秒內跟上；唯一的盲區是新 session 尚未送出第一則訊息前的切換——
+Codex 要到第一個 turn 才建立 rollout 檔，companion 會在第一則回覆開始後
+自行補上。Companion 補上原生 footer 沒有的欄位，並可逐步壓縮至
 30 欄寬的 terminal；量表與預測會依緊急程度變色。
 
 Coralline Codex 內含九款 Codex 原生主題、四種 companion 樣式、ASCII
