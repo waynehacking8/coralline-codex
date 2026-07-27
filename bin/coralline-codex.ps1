@@ -192,6 +192,6 @@ if ($Config.nativeStatus -ne $false) {
         '-c', "tui.theme=`"coralline-$Theme`""
     )
 }
-$Inline = if ((Test-CodexInteractive $Rest) -and -not (Test-HasNoAltScreen $Rest)) { @('--no-alt-screen') } else { @() }
+[string[]]$Inline = if ((Test-CodexInteractive $Rest) -and -not (Test-HasNoAltScreen $Rest)) { '--no-alt-screen' } else { @() }
 & $CodexBin @Native @Inline @Rest
 exit $LASTEXITCODE
