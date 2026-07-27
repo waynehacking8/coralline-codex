@@ -75,7 +75,7 @@ load_current() {
   CC_PYTHON=off
   CC_SEGMENTS='limits burn tokens context dir git stash project node python model reasoning profile elapsed clock'
   CC_NATIVE_STATUS=on
-  CC_NATIVE_FIELDS='model-with-reasoning run-state context-remaining five-hour-limit weekly-limit used-tokens fast-mode task-progress'
+  CC_NATIVE_FIELDS='model-with-reasoning run-state context-remaining five-hour-limit weekly-limit used-tokens git-branch branch-changes fast-mode task-progress'
   CC_AGENTS=on
   CC_AGENT_ROWS=3
   CC_USAGE_REFRESH=60

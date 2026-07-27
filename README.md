@@ -1,9 +1,9 @@
 # Coralline Codex
 
 > A [Powerlevel10k](https://github.com/romkatv/powerlevel10k)-inspired status
-> experience for the OpenAI Codex CLI, pairing Codex's native footer with a live
-> terminal companion for usage limits, context, session tokens, and active
-> Codex subagents.
+> experience for the OpenAI Codex CLI. Bash launches default to the full tmux
+> companion; native inline mode remains available for ordinary terminal
+> scrolling and copy/paste.
 
 [繁體中文說明](./README.zh-TW.md)
 
@@ -34,13 +34,16 @@ GitHub. The live terminal uses the selected Powerline or ASCII style.
 | `elapsed` | session wall-clock duration |
 | `clock` | local 24-hour time |
 
-The native Codex footer remains authoritative for live model, reasoning effort,
-context remaining, limits, and used tokens. The companion adds the fields Codex
-does not render there and progressively compacts down to a 30-column terminal.
+The default Bash launch uses the full tmux companion and its mouse handling.
+Use `--no-companion` for Codex's official inline renderer, where scrolling,
+selection, copy, paste, and right-click behavior remain controlled by the
+terminal. The native Codex footer remains authoritative for live model,
+reasoning effort, context remaining, limits, and used tokens. The companion
+adds the fields Codex does not render there and progressively compacts down to a 30-column terminal.
 Gauges and projections change color with urgency. The native field list is
 configurable and can also be left entirely to the user's Codex configuration.
 
-While Codex subagents are running, the Bash companion expands from one row up
+The Bash companion expands from one row up
 to five total tmux status rows. Each agent row can show its Codex nickname,
 role, spawn task, effective model and reasoning effort, exact token/context
 usage, elapsed turn time, and nested-agent count. Rows collapse as soon as work
@@ -59,11 +62,11 @@ Claude Code project. Attribution and port details are in [NOTICE.md](./NOTICE.md
 
 | Platform | Support tier | Experience |
 |---|---|---|
-| Linux, Bash 4+ | Full | Native Codex footer + live isolated tmux companion |
-| macOS, Homebrew Bash 4+ | Full | Native Codex footer + live isolated tmux companion |
-| Windows 11 with WSL2 | Full | Same Linux companion experience inside WSL |
-| Native Windows PowerShell | Native | Themed Codex footer, limits/tokens, exact `usage`, managed PowerShell hook |
-| Windows Git Bash/MSYS2 | Compatible | Bash lifecycle and fallback tested; full companion requires a working tmux |
+| Linux, Bash 4+ | Full | Isolated tmux companion by default; native inline mode on request |
+| macOS, Homebrew Bash 4+ | Full | Isolated tmux companion by default; native inline mode on request |
+| Windows 11 with WSL2 | Full | Same Linux modes inside WSL |
+| Native Windows PowerShell | Native | Native inline footer, limits/tokens, exact `usage`, managed PowerShell hook |
+| Windows Git Bash/MSYS2 | Compatible | Full companion with working tmux; use `--no-companion` without it |
 
 Native Windows does not show the extra Powerlevel10k companion or agent rows
 because Codex does not expose an external footer renderer there. It still gets
@@ -77,8 +80,7 @@ does not ask you to pipe a remote script into a shell.
 
 ### Linux
 
-Install Bash 4+, Python 3.8+, Git, Codex CLI 0.144.6+, and tmux with your package manager,
-then:
+Install Bash 4+, Python 3.8+, Git, tmux, and Codex CLI 0.145.0+, then:
 
 ```bash
 git clone https://github.com/waynehacking8/coralline-codex.git
@@ -94,10 +96,12 @@ Open a new shell. Normal `codex` commands now use Coralline. If
 ### macOS
 
 macOS ships an older Bash, so install current dependencies and Codex CLI
-0.144.6+ first:
+0.145.0+ first:
 
 ```bash
-brew install bash python tmux git
+brew install bash python git
+# Default full companion:
+brew install tmux
 git clone https://github.com/waynehacking8/coralline-codex.git
 cd coralline-codex
 ./install.sh --shell-hook zsh
@@ -109,12 +113,12 @@ to `~/.zshrc`; open a new terminal or source that file once.
 
 ### Windows 11 + WSL2
 
-Clone and run the Linux instructions inside WSL. Install `tmux`, Python 3, Git,
-and Bash in that distribution. This is the full Windows experience.
+Clone and run the Linux instructions inside WSL. Install Python 3, Git, Bash,
+and tmux in that distribution for the default full companion.
 
 ### Native Windows PowerShell
 
-Install Git, Python 3.8+, and Codex CLI 0.144.6+, then run from PowerShell:
+Install Git, Python 3.8+, and Codex CLI 0.145.0+, then run from PowerShell:
 
 ```powershell
 git clone https://github.com/waynehacking8/coralline-codex.git
@@ -137,15 +141,21 @@ Custom locations, including paths with spaces, are supported on every tier.
 codex --yolo                         # when the optional shell hook is installed
 coralline-codex                     # direct wrapper launch
 coralline-codex --model gpt-5.6
-coralline-codex --no-companion      # native footer only
+coralline-codex --full-companion    # explicit alias for the default full bar
+coralline-codex --no-companion      # native terminal scroll/select/paste mode
 coralline-codex usage               # refresh and print exact account usage
 coralline-codex preview             # preview all themes (Bash companion tier)
 ```
 
-Arguments are passed as an array without string evaluation. Non-interactive
-Codex subcommands such as `exec` skip tmux automatically. Coralline does not
+Arguments are passed as an array without string evaluation. Native mode adds
+Codex's supported `--no-alt-screen` flag exactly once. Non-interactive Codex
+subcommands always skip tmux. Coralline does not
 change the meaning or security implications of `--yolo`; it simply forwards the
 flag.
+
+The default full companion intentionally uses tmux mouse handling. Use tmux
+selection and keyboard paste there; terminal-native right-click behavior is
+available with `--no-companion`.
 
 To bypass an installed hook for one command:
 
@@ -193,8 +203,9 @@ that segment. The renderer progressively compacts limits and tokens down to a
 
 ## How usage tracking works
 
-The background watcher asks the authenticated Codex app-server for account
-limits and tails Codex's local rollout protocol for session and subagent state,
+In full-companion mode, the background watcher asks the authenticated Codex
+app-server for account limits and tails Codex's local rollout protocol for
+session and subagent state,
 then writes atomic mode-0600 caches under
 `$CODEX_HOME/coralline-codex-cache/`. Rendering is local and network-free.
 Transient failures preserve the last valid values and visibly mark them stale.

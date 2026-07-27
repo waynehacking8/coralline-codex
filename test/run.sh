@@ -34,7 +34,7 @@ capture = os.environ.get("CORALLINE_TEST_CAPTURE_ARGS")
 if capture:
     Path(capture).write_text("\n".join(sys.argv[1:]) + "\n", encoding="utf-8")
 if "--version" in sys.argv:
-    print("codex-cli platform-test")
+    print("codex-cli 0.145.0")
     time.sleep(0.5)
 else:
     print("fake codex: " + " ".join(sys.argv[1:]))
@@ -69,14 +69,36 @@ if command -v shellcheck >/dev/null 2>&1; then
 fi
 pass 'shell and Python lint/syntax checks'
 
+old_codex="$TEST_ROOT/old-codex"
+cat > "$old_codex" <<'EOF'
+#!/usr/bin/env bash
+printf 'codex-cli 0.144.6\n'
+EOF
+chmod 755 "$old_codex"
+if old_output=$(CORALLINE_CODEX_BIN="$old_codex" CORALLINE_CODEX_CONFIG=/dev/null \
+  "$ROOT/bin/coralline-codex" --version 2>&1); then
+  fail 'launcher accepted Codex older than 0.145.0'
+fi
+assert_contains "$old_output" 'Codex 0.145.0 or newer is required' 'launcher reports the Codex minimum'
+old_path="$TEST_ROOT/old Codex path"
+old_home="$TEST_ROOT/old Codex home"
+mkdir -p "$old_path" "$old_home"
+cp -p -- "$old_codex" "$old_path/codex"
+if PATH="$old_path:$PATH" HOME="$old_home" CODEX_HOME="$old_home/.codex" \
+  CORALLINE_BIN_DIR="$old_home/bin" "$ROOT/install.sh" >/dev/null 2>&1; then
+  fail 'installer accepted Codex older than 0.145.0'
+fi
+assert_absent "$old_home/.codex/coralline-codex" 'rejected install changed the target'
+pass 'Codex 0.145.0 minimum is enforced before install and launch'
+
 if [ "$(uname -s)" != Darwin ] && command -v tmux >/dev/null 2>&1 && command -v script >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
   printf -v tty_command '%q --version' "$ROOT/bin/coralline-codex"
   if ! tty_output=$(TERM=xterm-256color timeout 10 script -qfec "$tty_command" /dev/null 2>&1); then
     fail "tmux companion pseudo-terminal launch failed: $tty_output"
   fi
-  assert_contains "$tty_output" 'codex-cli ' 'tmux companion launches Codex in a pseudo-terminal'
-  assert_not_contains "$tty_output" 'unbound variable' 'tmux companion cleanup is scoped'
-  pass 'isolated tmux companion launch and cleanup'
+  assert_contains "$tty_output" 'codex-cli ' 'non-interactive version flag launches Codex'
+  assert_not_contains "$tty_output" 'server exited unexpectedly' 'non-interactive version flag skips tmux'
+  pass 'non-interactive version flag skips the companion'
 
   dynamic_root="$TEST_ROOT/dynamic agent rows"
   dynamic_home="$dynamic_root/Codex Home"
@@ -103,6 +125,10 @@ if "app-server" in sys.argv:
         else:
             continue
         print(json.dumps({"id": message.get("id"), "result": result}), flush=True)
+    raise SystemExit(0)
+
+if "--version" in sys.argv:
+    print("codex-cli 0.145.0")
     raise SystemExit(0)
 
 home = Path(os.environ["CODEX_HOME"])
@@ -144,11 +170,15 @@ EOF
   dynamic_pid=$!
   dynamic_status=
   dynamic_mouse=
+  dynamic_clipboard=
+  dynamic_copy_keys=
   for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
     socket_path=$(find "$dynamic_sockets" -type s -name 'coralline-*' -print 2>/dev/null | sed -n '1p')
     if [ -n "$socket_path" ]; then
       dynamic_status=$(TMUX='' tmux -S "$socket_path" show-option -gv status 2>/dev/null || true)
       dynamic_mouse=$(TMUX='' tmux -S "$socket_path" show-option -gv mouse 2>/dev/null || true)
+      dynamic_clipboard=$(TMUX='' tmux -S "$socket_path" show-option -sv set-clipboard 2>/dev/null || true)
+      dynamic_copy_keys=$(TMUX='' tmux -S "$socket_path" list-keys -T copy-mode 2>/dev/null || true)
       [ "$dynamic_status" = 2 ] && break
     fi
     sleep 0.5
@@ -156,7 +186,52 @@ EOF
   wait "$dynamic_pid" >/dev/null 2>&1 || true
   [ "$dynamic_status" = 2 ] || fail "active agent did not expand tmux status to two rows: ${dynamic_status:-missing}"
   [ "$dynamic_mouse" = on ] || fail "private tmux server did not enable mouse scrolling: ${dynamic_mouse:-missing}"
-  pass 'tmux status expands for active agents, enables scrolling, and remains isolated'
+  [ "$dynamic_clipboard" = external ] || fail "private tmux server did not enable external clipboard copying: ${dynamic_clipboard:-missing}"
+  assert_contains "$dynamic_copy_keys" 'MouseDragEnd1Pane send-keys -X stop-selection' \
+    'mouse selection remains visible until copied'
+  assert_contains "$dynamic_copy_keys" 'MouseDown3Pane' 'right click copies the tmux selection'
+  assert_contains "$dynamic_copy_keys" 'copy-selection-and-cancel' 'right click copies the tmux selection'
+  pass 'tmux status, scrolling, and right-click copying remain isolated'
+
+  classifier_root="$TEST_ROOT/command classifier"
+  mkdir -p "$classifier_root"
+  cat > "$classifier_root/codex" <<'EOF'
+#!/usr/bin/env bash
+if [[ " $* " == *" --version "* ]]; then printf 'codex-cli 0.145.0\n'; exit; fi
+[ -z "${CORALLINE_CLASSIFIER_CAPTURE:-}" ] ||
+  printf 'tmux=%s args=%s\n' "${TMUX:+yes}" "$*" > "$CORALLINE_CLASSIFIER_CAPTURE"
+printf 'tmux=%s args=%s\n' "${TMUX:+yes}" "$*"
+EOF
+  chmod 755 "$classifier_root/codex"
+  noninteractive_commands=(
+    exec e review login logout mcp plugin mcp-server app-server remote-control
+    completion update doctor sandbox debug apply a archive delete unarchive cloud
+    exec-server features help
+  )
+  for command in "${noninteractive_commands[@]}"; do
+    printf -v classifier_command '%q --full-companion %q' "$ROOT/bin/coralline-codex" "$command"
+    classifier_output=$(TMUX='' CORALLINE_CODEX_BIN="$classifier_root/codex" CORALLINE_CODEX_CONFIG=/dev/null \
+      TERM=xterm-256color timeout 5 script -qfec "$classifier_command" /dev/null 2>&1)
+    assert_contains "$classifier_output" 'tmux= args=' "non-interactive command $command bypasses tmux"
+  done
+  for ordered_case in '--model test exec' '--model=test review' '-C /tmp doctor' \
+    '--strict-config features' 'resume --help' 'fork --help' '--yolo --help'; do
+    printf -v classifier_command '%q --full-companion %s' "$ROOT/bin/coralline-codex" "$ordered_case"
+    classifier_output=$(TMUX='' CORALLINE_CODEX_BIN="$classifier_root/codex" CORALLINE_CODEX_CONFIG=/dev/null \
+      TERM=xterm-256color timeout 5 script -qfec "$classifier_command" /dev/null 2>&1)
+    assert_contains "$classifier_output" 'tmux= args=' "ordered case $ordered_case bypasses tmux"
+  done
+  for interactive_case in 'resume exec' 'fork review'; do
+    classifier_capture="$classifier_root/${interactive_case// /-}.log"
+    printf -v classifier_command '%q --full-companion %s' "$ROOT/bin/coralline-codex" "$interactive_case"
+    TMUX='' CORALLINE_CLASSIFIER_CAPTURE="$classifier_capture" \
+      CORALLINE_CODEX_BIN="$classifier_root/codex" CORALLINE_CODEX_CONFIG=/dev/null \
+      TERM=xterm-256color timeout 5 script -qfec "$classifier_command" /dev/null >/dev/null 2>&1 || true
+    classifier_output=$(< "$classifier_capture")
+    assert_contains "$classifier_output" 'tmux=yes args=' \
+      "interactive case $interactive_case keeps the requested companion"
+  done
+  pass 'all Codex 0.145 non-interactive commands bypass the companion'
 fi
 
 while IFS=$'\t' read -r theme _; do
@@ -238,7 +313,7 @@ capture = os.environ.get("CORALLINE_TEST_CAPTURE_ARGS")
 if capture:
     Path(capture).write_text("\n".join(sys.argv[1:]) + "\n", encoding="utf-8")
 if "--version" in sys.argv:
-    print("codex-cli native-test")
+    print("codex-cli 0.145.0")
     raise SystemExit(0)
 for line in sys.stdin:
     message = json.loads(line)
@@ -603,6 +678,23 @@ native_codex=$fake_codex
 if ((WINDOWS_SHELL)); then native_codex=$TEST_ROOT/test-bin/codex; fi
 CORALLINE_CODEX_BIN="$native_codex" CORALLINE_CODEX_CONFIG="$native_config" \
   CORALLINE_TEST_CAPTURE_ARGS="$native_capture" CODEX_HOME="$native_home" \
+  "$ROOT/bin/coralline-codex" --no-companion --yolo >/dev/null
+native_args=$(< "$native_capture")
+assert_contains "$native_args" '--no-alt-screen' 'native mode preserves terminal scrollback'
+[ "$(grep -cFx -- '--no-alt-screen' "$native_capture")" = 1 ] ||
+  fail 'native mode did not pass --no-alt-screen exactly once'
+CORALLINE_CODEX_BIN="$native_codex" CORALLINE_CODEX_CONFIG="$native_config" \
+  CORALLINE_TEST_CAPTURE_ARGS="$native_capture" CODEX_HOME="$native_home" \
+  "$ROOT/bin/coralline-codex" --no-companion --no-alt-screen --yolo >/dev/null
+[ "$(grep -cFx -- '--no-alt-screen' "$native_capture")" = 1 ] ||
+  fail 'native mode duplicated an explicit --no-alt-screen'
+CORALLINE_CODEX_BIN="$native_codex" CORALLINE_CODEX_CONFIG="$native_config" \
+  CORALLINE_TEST_CAPTURE_ARGS="$native_capture" CODEX_HOME="$native_home" \
+  "$ROOT/bin/coralline-codex" --no-companion resume exec >/dev/null
+assert_contains "$(< "$native_capture")" '--no-alt-screen' \
+  'a resumed session named after a command remains interactive'
+CORALLINE_CODEX_BIN="$native_codex" CORALLINE_CODEX_CONFIG="$native_config" \
+  CORALLINE_TEST_CAPTURE_ARGS="$native_capture" CODEX_HOME="$native_home" \
   "$ROOT/bin/coralline-codex" --no-companion --version >/dev/null
 native_args=$(< "$native_capture")
 assert_contains "$native_args" 'tui.status_line=["model-with-reasoning","run-state","task-progress"]' \
@@ -655,7 +747,7 @@ python3 "$ROOT/lib/shell_integration.py" install --codex-home "$shell_state_home
 [ "$hook_hash" = "$(hash_file "$shell_rc")" ] || fail 'shell hook installation is not idempotent'
 hook_run=$(bash -c 'source "$1"; codex --yolo' _ "$shell_rc")
 shell_codex_absolute=$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).expanduser().absolute())' "$shell_codex")
-assert_contains "$hook_run" "wrapper:$shell_codex_absolute:--yolo" 'managed hook routes codex through wrapper'
+assert_contains "$hook_run" "wrapper:$shell_codex_absolute:run --yolo" 'managed hook routes codex through wrapper'
 bypass_run=$(CORALLINE_CODEX_DISABLE=1 bash -c 'source "$1"; codex --version' _ "$shell_rc")
 assert_contains "$bypass_run" 'real:--version' 'managed hook supports an explicit bypass'
 python3 "$ROOT/lib/shell_integration.py" status --codex-home "$shell_state_home" \

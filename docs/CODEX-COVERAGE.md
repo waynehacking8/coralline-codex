@@ -6,7 +6,7 @@ scrape terminal pixels, or patch the Codex binary.
 
 ## Native Codex footer
 
-`CC_NATIVE_FIELDS` accepts every status-line item supported by Codex CLI 0.144.6:
+`CC_NATIVE_FIELDS` accepts every status-line item supported by Codex CLI 0.145.0:
 
 ```text
 model model-name model-with-reasoning reasoning current-dir project-name
@@ -37,9 +37,10 @@ and status colors.
 | Git/workspace/runtime | local filesystem and tools | hidden rather than guessed |
 
 Codex does not currently expose a documented command-valued `statusLine` or
-`subagentStatusLine`. Coralline therefore renders the companion in an isolated
-tmux status area. It does not inject rows inside Codex's prompt region. Native
-Windows retains Codex's built-in `/agent` view but needs WSL for companion rows.
+`subagentStatusLine`. Coralline therefore renders the default Bash companion in
+an isolated tmux status area. `--no-companion` does not inject rows inside
+Codex's prompt region or capture mouse input. Native Windows retains Codex's
+built-in `/agent` view but needs WSL for companion rows.
 
 ## Deliberate exclusions
 

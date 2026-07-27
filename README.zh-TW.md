@@ -2,8 +2,8 @@
 
 > 給 OpenAI Codex CLI 用、向
 > [Powerlevel10k](https://github.com/romkatv/powerlevel10k) 致敬的狀態體驗；
-> 結合 Codex 原生 footer 與即時 terminal companion，持續顯示用量限額、
-> 消耗預測及 session token。
+> Bash 預設使用完整 tmux companion；需要 terminal 原生捲動與複製貼上時，
+> 可改用 Codex inline footer。
 
 [English README](./README.md)
 
@@ -32,7 +32,9 @@ terminal 仍會依設定使用 Powerline 或 ASCII 樣式。
 | `elapsed` | session 經過時間 |
 | `clock` | 本地 24 小時制時鐘 |
 
-Codex 原生 footer 仍是即時 model、推理強度、剩餘 context、limits 與 used
+預設 Bash 啟動使用完整 tmux companion 與其滑鼠處理。使用
+`--no-companion` 時改用 Codex 官方 inline renderer，捲動、選取、複製、
+貼上與右鍵行為都由 terminal 本身的設定決定。Codex 原生 footer 仍是即時 model、推理強度、剩餘 context、limits 與 used
 tokens 的權威來源。Session 中以 `/model` 切換後，companion 的 model 標籤
 會在數秒內跟上；唯一的盲區是新 session 尚未送出第一則訊息前的切換——
 Codex 要到第一個 turn 才建立 rollout 檔，companion 會在第一則回覆開始後
@@ -50,11 +52,11 @@ fallback、即時預覽設定精靈，以及可選、可逆的 shell hook，讓�
 
 | 平台 | 等級 | 體驗 |
 |---|---|---|
-| Linux、Bash 4+ | 完整 | Codex 原生 footer + 隔離的 tmux companion |
-| macOS、Homebrew Bash 4+ | 完整 | Codex 原生 footer + 隔離的 tmux companion |
-| Windows 11 + WSL2 | 完整 | 在 WSL 內提供與 Linux 相同的完整功能 |
-| Windows 原生 PowerShell | 原生 | 主題化 Codex footer、limits/tokens、精確 `usage`、PowerShell hook |
-| Windows Git Bash/MSYS2 | 相容 | 已測試 Bash lifecycle 與 fallback；完整 companion 需要可用的 tmux |
+| Linux、Bash 4+ | 完整 | 預設隔離的 tmux companion；需要時改用原生 inline |
+| macOS、Homebrew Bash 4+ | 完整 | 預設隔離的 tmux companion；需要時改用原生 inline |
+| Windows 11 + WSL2 | 完整 | 在 WSL 內提供與 Linux 相同的兩種模式 |
+| Windows 原生 PowerShell | 原生 | 原生 inline footer、limits/tokens、精確 `usage`、PowerShell hook |
+| Windows Git Bash/MSYS2 | 相容 | 有 tmux 時使用完整 companion；沒有時請加 `--no-companion` |
 
 Codex 在 Windows 原生環境沒有公開的外部 footer renderer，因此 PowerShell
 版本無法加上額外的 Powerlevel10k companion；這不是偽裝成完整支援。需要完整
@@ -62,7 +64,8 @@ Codex 在 Windows 原生環境沒有公開的外部 footer renderer，因此 Pow
 
 ## Linux 安裝
 
-先用套件管理器安裝 Bash 4+、Python 3.8+、Git、Codex 與 tmux，再執行：
+先用套件管理器安裝 Bash 4+、Python 3.8+、Git 與 Codex CLI 0.145.0+。
+預設完整 companion 需要 tmux：
 
 ```bash
 git clone https://github.com/waynehacking8/coralline-codex.git
@@ -80,7 +83,9 @@ cd coralline-codex
 macOS 內建 Bash 版本較舊，先安裝目前版本：
 
 ```bash
-brew install bash python tmux git
+brew install bash python git
+# 預設完整 companion：
+brew install tmux
 git clone https://github.com/waynehacking8/coralline-codex.git
 cd coralline-codex
 ./install.sh --shell-hook zsh
@@ -93,11 +98,11 @@ source 一次該檔案即可。
 ## Windows 11 + WSL2
 
 在 WSL distribution 內 clone，並依照上述 Linux 步驟安裝 Bash、Python 3、
-Git 與 tmux。這是 Windows 的完整功能路徑。
+Git 與 tmux，以使用預設完整 companion。
 
 ## Windows 原生 PowerShell
 
-先安裝 Git、Python 3.8+ 與 Codex，然後在 PowerShell 執行：
+先安裝 Git、Python 3.8+ 與 Codex CLI 0.145.0+，然後在 PowerShell 執行：
 
 ```powershell
 git clone https://github.com/waynehacking8/coralline-codex.git
@@ -120,13 +125,18 @@ coralline-codex usage
 ```bash
 codex --yolo
 coralline-codex
-coralline-codex --no-companion
+coralline-codex --full-companion
+coralline-codex --no-companion  # terminal 原生捲動、選取與貼上模式
 coralline-codex usage
 coralline-codex preview
 ```
 
-參數以陣列直接轉交，不使用字串 eval。`exec` 等非互動 subcommand 會自動略過
-tmux。Coralline 不會改變 `--yolo` 的語意或風險，只會原樣轉交該參數。
+參數以陣列直接轉交，不使用字串 eval。`--no-companion` 只加入 Codex 官方
+支援的 `--no-alt-screen`，且只加入一次；`exec` 等非互動 subcommand 一律略過 tmux。
+Coralline 不會改變 `--yolo` 的語意或風險，只會原樣轉交該參數。
+
+預設完整 companion 會刻意使用 tmux 的滑鼠處理。該模式請使用 tmux 選取及
+鍵盤貼上；terminal 原生右鍵行為請改用 `--no-companion`。
 
 暫時繞過 hook：
 
@@ -168,7 +178,7 @@ renderer 會依寬度逐步縮短 limits 與 tokens，即使終端只有 30 欄�
 
 ## 用量資料與隱私
 
-背景 watcher 透過已登入的 Codex app-server 取得方案限制，再以 atomic write
+只有完整 companion 模式會啟動背景 watcher。它透過已登入的 Codex app-server 取得方案限制，再以 atomic write
 寫入 `$CODEX_HOME/coralline-codex-cache/` 下權限為 0600 的快取。renderer
 只讀本機快取，不會連線；暫時查詢失敗時會保留最後一次有效數值並標記 stale。
 

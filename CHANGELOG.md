@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 - 2026-07-27
+
+- Keep the complete tmux companion, including clock, burn, runtime, and agent
+  rows, as the default Bash experience.
+- Add explicit `--no-companion` native inline mode for terminal-owned
+  scrollback, selection, copy, and configured right-click behavior.
+- Require Codex CLI 0.145.0+, route all Codex commands through the managed
+  hooks without stealing Codex help, and align Bash and PowerShell footer
+  defaults with Git state.
+
 ## 0.3.3 - 2026-07-27
 
 - Enable mouse handling on the private tmux server so the terminal scroll wheel

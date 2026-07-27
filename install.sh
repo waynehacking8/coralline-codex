@@ -6,6 +6,8 @@ CODEX_DIR=${CODEX_HOME:-$HOME/.codex}
 BIN_DIR=${CORALLINE_BIN_DIR:-$HOME/.local/bin}
 MODE=install
 SHELL_HOOK=preserve
+MIN_CODEX_VERSION=0.145.0
+DEFAULT_NATIVE_FIELDS='model-with-reasoning run-state context-remaining five-hour-limit weekly-limit used-tokens git-branch branch-changes fast-mode task-progress'
 
 canonical_path() {
   python3 - "$1" <<'PY'
@@ -104,6 +106,18 @@ fi
 for dependency in bash python3 codex; do
   command -v "$dependency" >/dev/null 2>&1 || { printf 'install: required command not found: %s\n' "$dependency" >&2; exit 1; }
 done
+codex_version=$(codex --version 2>/dev/null) ||
+  { printf 'install: failed to run Codex\n' >&2; exit 1; }
+if [[ $codex_version =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+  codex_major=${BASH_REMATCH[1]}; codex_minor=${BASH_REMATCH[2]}
+else
+  printf 'install: could not parse Codex version: %s\n' "$codex_version" >&2
+  exit 1
+fi
+if ((codex_major == 0 && codex_minor < 145)); then
+  printf 'install: Codex %s or newer is required (found %s)\n' "$MIN_CODEX_VERSION" "${BASH_REMATCH[0]}" >&2
+  exit 1
+fi
 mkdir -p "$CODEX_DIR" "$BIN_DIR" "$THEME_DIR"
 if { [ -e "$BIN" ] || [ -L "$BIN" ]; } && ! bin_is_managed; then
   printf 'install: refusing to overwrite unrelated path: %s\n' "$BIN" >&2
@@ -158,7 +172,7 @@ if [ ! -f "$CONFIG" ]; then
   python3 "$INSTALL_DIR/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUP_ROOT" \
     CC_THEME=claude-coral CC_STYLE=powerline CC_ASCII=auto CC_NODE=off CC_PYTHON=off \
     CC_RUNTIME_PROBE=off 'CC_SEGMENTS=limits burn tokens context dir git stash project node python model reasoning profile elapsed clock' \
-    CC_NATIVE_STATUS=on 'CC_NATIVE_FIELDS=model-with-reasoning run-state context-remaining five-hour-limit weekly-limit used-tokens fast-mode task-progress' \
+    CC_NATIVE_STATUS=on "CC_NATIVE_FIELDS=$DEFAULT_NATIVE_FIELDS" \
     CC_AGENTS=on CC_AGENT_ROWS=3 CC_USAGE_REFRESH=60 CC_USAGE_STALE_AFTER=180 >/dev/null
 elif grep -Fxq "CC_SEGMENTS='dir project git node python model profile elapsed clock'" "$CONFIG"; then
   python3 "$INSTALL_DIR/lib/config.py" merge --config "$CONFIG" --backup-dir "$BACKUP_ROOT" \
@@ -172,7 +186,7 @@ elif grep -Fxq "CC_SEGMENTS='limits burn tokens dir git project node python mode
     'CC_SEGMENTS=limits burn tokens context dir git stash project node python model reasoning profile elapsed clock' >/dev/null
 fi
 declare -a feature_defaults=()
-grep -q '^CC_NATIVE_FIELDS=' "$CONFIG" || feature_defaults+=('CC_NATIVE_FIELDS=model-with-reasoning run-state context-remaining five-hour-limit weekly-limit used-tokens fast-mode task-progress')
+grep -q '^CC_NATIVE_FIELDS=' "$CONFIG" || feature_defaults+=("CC_NATIVE_FIELDS=$DEFAULT_NATIVE_FIELDS")
 grep -q '^CC_AGENTS=' "$CONFIG" || feature_defaults+=(CC_AGENTS=on)
 grep -q '^CC_AGENT_ROWS=' "$CONFIG" || feature_defaults+=(CC_AGENT_ROWS=3)
 if ((${#feature_defaults[@]})); then
@@ -198,6 +212,17 @@ elif [ "$SHELL_HOOK" != preserve ]; then
   python3 "$INSTALL_DIR/lib/shell_integration.py" install \
     --codex-home "$CODEX_DIR" --backup-dir "$BACKUP_ROOT/shell" \
     --shell "$SHELL_HOOK" "${shell_rc_args[@]}" --wrapper "$BIN" --codex-bin "$real_codex"
+elif [ -f "$CODEX_DIR/coralline-codex-shell.json" ]; then
+  managed_shell=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("shell", ""))' \
+    "$CODEX_DIR/coralline-codex-shell.json")
+  managed_rc=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("rc", ""))' \
+    "$CODEX_DIR/coralline-codex-shell.json")
+  real_codex=$(type -P codex || true)
+  if [[ $managed_shell == bash || $managed_shell == zsh ]] && [ -n "$managed_rc" ] && [ -n "$real_codex" ]; then
+    python3 "$INSTALL_DIR/lib/shell_integration.py" install \
+      --codex-home "$CODEX_DIR" --backup-dir "$BACKUP_ROOT/shell" \
+      --shell "$managed_shell" --rc "$managed_rc" --wrapper "$BIN" --codex-bin "$real_codex"
+  fi
 fi
 
 printf 'Coralline Codex %s installed.\n' "$(< "$INSTALL_DIR/VERSION")"
@@ -214,5 +239,5 @@ if [ -n "$previous_version" ] && [ "$previous_version" != "$current_version" ]; 
   ' "$INSTALL_DIR/CHANGELOG.md"
 fi
 if ! command -v tmux >/dev/null 2>&1; then
-  printf '  note: tmux is absent; the themed native Codex footer works, but the companion bar will fall back to one-shot rendering.\n'
+  printf '  note: tmux is absent; native inline mode works, but --full-companion is unavailable.\n'
 fi

@@ -32,6 +32,7 @@ approval_policy = "never"
     $FakePython = Join-Path $FakeDir 'fake_codex.py'
     Set-Content -LiteralPath $FakePython -Value @'
 import json
+import os
 import sys
 
 if "app-server" in sys.argv:
@@ -47,7 +48,7 @@ if "app-server" in sys.argv:
         elif method == "account/usage/read":
             print(json.dumps({"id": message["id"], "result": {"summary": {"lifetimeTokens": 987654}}}), flush=True)
 elif "--version" in sys.argv:
-    print("codex-cli windows-test")
+    print("codex-cli " + os.environ.get("CORALLINE_TEST_CODEX_VERSION", "0.145.0"))
 else:
     print(json.dumps(sys.argv[1:]))
 '@ -Encoding UTF8
@@ -65,6 +66,19 @@ else:
     New-Item -ItemType Directory -Force -Path $ConflictHome, $ConflictBin | Out-Null
     $ConflictShim = Join-Path $ConflictBin 'coralline-codex.cmd'
     Set-Content -LiteralPath $ConflictShim -Value '@echo unrelated' -Encoding ASCII
+    $OldHome = Join-Path $TestRoot 'old Codex home'
+    $OldBin = Join-Path $TestRoot 'old Codex bin'
+    New-Item -ItemType Directory -Force -Path $OldHome, $OldBin | Out-Null
+    $env:CORALLINE_TEST_CODEX_VERSION = '0.144.6'
+    $RefusedOldCodex = $false
+    try {
+        & (Join-Path $Root 'install.ps1') -CodexHome $OldHome -BinDir $OldBin -CodexBin $FakeCodex 2>$null | Out-Null
+    } catch { $RefusedOldCodex = $true }
+    Remove-Item Env:CORALLINE_TEST_CODEX_VERSION
+    Assert-True $RefusedOldCodex 'Windows installer accepted Codex older than 0.145.0'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $OldHome 'coralline-codex'))) 'rejected Windows install changed the target'
+    Pass 'native Windows installer enforces the Codex minimum'
+
     $RefusedConflict = $false
     try {
         & (Join-Path $Root 'install.ps1') -CodexHome $ConflictHome -BinDir $ConflictBin -CodexBin $FakeCodex 2>$null | Out-Null
@@ -88,7 +102,7 @@ else:
     Assert-Contains $ProfileText '$global:UserSetting = "keep"' 'PowerShell profile content preserved'
     . $ProfilePath
     $HookOutput = (codex --version | Out-String)
-    Assert-Contains $HookOutput 'codex-cli windows-test' 'PowerShell codex function launches the wrapper'
+    Assert-Contains $HookOutput 'codex-cli 0.145.0' 'PowerShell codex function launches the wrapper'
     $CompanionCommand = Get-Command coralline-codex -CommandType Function -ErrorAction Stop
     Assert-True ($CompanionCommand.Name -eq 'coralline-codex') 'PowerShell companion function was not installed'
     Pass 'PowerShell shell integration is functional'
@@ -97,7 +111,13 @@ else:
     Assert-Contains $RunOutput 'tui.status_line=' 'native footer override is passed to Codex'
     Assert-Contains $RunOutput 'task-progress' 'richer native footer fields are passed to Codex'
     Assert-Contains $RunOutput 'tui.theme=' 'native Coralline theme override is passed to Codex'
+    Assert-Contains $RunOutput '--no-alt-screen' 'native Windows preserves terminal scrollback'
+    Assert-Contains $RunOutput 'git-branch' 'native Windows receives the cross-platform default fields'
     Assert-Contains $RunOutput '--yolo' 'user Codex arguments are preserved'
+    $ResumeOutput = (& $Wrapper resume exec | Out-String)
+    Assert-Contains $ResumeOutput '--no-alt-screen' 'a Windows session named after a command remains interactive'
+    & $Wrapper --full-companion --yolo 2>$null | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'native Windows accepted the tmux-only companion mode'
     $UsageOutput = (& $Wrapper usage | Out-String)
     Assert-Contains $UsageOutput '7d: 79% remaining' 'official app-server quota works on Windows'
     Assert-Contains $UsageOutput '987.7k lifetime' 'account token activity works on Windows'

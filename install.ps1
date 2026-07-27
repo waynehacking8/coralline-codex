@@ -25,6 +25,8 @@ $CommandShim = Join-Path $BinDir 'coralline-codex.cmd'
 $StartMarker = '# >>> coralline-codex managed PowerShell integration >>>'
 $EndMarker = '# <<< coralline-codex managed PowerShell integration <<<'
 $PreviousVersion = if (Test-Path -LiteralPath (Join-Path $InstallDir 'VERSION')) { (Get-Content -LiteralPath (Join-Path $InstallDir 'VERSION') -Raw).Trim() } else { '' }
+$MinimumCodexVersion = [version]'0.145.0'
+$DefaultNativeFields = @('model-with-reasoning', 'run-state', 'context-remaining', 'five-hour-limit', 'weekly-limit', 'used-tokens', 'git-branch', 'branch-changes', 'fast-mode', 'task-progress')
 
 function Backup-File([string]$Path, [string]$Bucket) {
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
@@ -99,6 +101,13 @@ if (-not $CodexBin) {
     $CodexBin = $command.Source
 }
 $CodexBin = (Resolve-Path -LiteralPath $CodexBin).Path
+$codexVersionOutput = (& $CodexBin --version | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) { throw "Failed to run Codex: $CodexBin" }
+if ($codexVersionOutput -notmatch '(\d+\.\d+\.\d+)') { throw "Could not parse Codex version: $codexVersionOutput" }
+$codexVersion = [version]$Matches[1]
+if ($codexVersion -lt $MinimumCodexVersion) {
+    throw "Codex $MinimumCodexVersion or newer is required (found $codexVersion)."
+}
 $python = Get-Command python -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $python) { $python = Get-Command python3 -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1 }
 if (-not $python) { throw 'Python 3.8+ is required.' }
@@ -150,16 +159,23 @@ if (Test-Path -LiteralPath $Config) {
     Backup-File $Config (Join-Path $BackupRoot 'windows-config') | Out-Null
     $settings.codexBin = $CodexBin
     if ($settings.PSObject.Properties.Name -notcontains 'nativeFields') {
-        $settings | Add-Member -NotePropertyName nativeFields -NotePropertyValue @('model-with-reasoning', 'run-state', 'context-remaining', 'five-hour-limit', 'weekly-limit', 'used-tokens', 'fast-mode', 'task-progress')
+        $settings | Add-Member -NotePropertyName nativeFields -NotePropertyValue $DefaultNativeFields
     }
 } else {
     $settings = [pscustomobject]@{
         version = 1; theme = 'claude-coral'; nativeStatus = $true; codexBin = $CodexBin
-        nativeFields = @('model-with-reasoning', 'run-state', 'context-remaining', 'five-hour-limit', 'weekly-limit', 'used-tokens', 'fast-mode', 'task-progress')
+        nativeFields = $DefaultNativeFields
     }
 }
 $settings | ConvertTo-Json | Set-Content -LiteralPath $Config -Encoding UTF8
 
+if (-not $ShellHook -and (Test-Path -LiteralPath $ShellState)) {
+    $existingShellState = Get-Content -LiteralPath $ShellState -Raw | ConvertFrom-Json
+    if ($existingShellState.profile) {
+        $ShellHook = $true
+        if (-not $ProfilePath) { $ProfilePath = [string]$existingShellState.profile }
+    }
+}
 if ($ShellHook) {
     if (-not $ProfilePath) { $ProfilePath = $PROFILE.CurrentUserAllHosts }
     $profileDirectory = Split-Path -Parent $ProfilePath
@@ -171,7 +187,7 @@ if ($ShellHook) {
     $block = @"
 $StartMarker
 function global:codex {
-    & '$escapedWrapper' @args
+    & '$escapedWrapper' run @args
 }
 function global:coralline-codex {
     & '$escapedWrapper' @args

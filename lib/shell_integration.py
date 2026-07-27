@@ -78,7 +78,7 @@ def hook_block(wrapper: Path, codex_bin: Path) -> str:
         "  if [ \"${CORALLINE_CODEX_DISABLE:-0}\" = 1 ]; then\n"
         f"    command {codex_q} \"$@\"\n"
         "  else\n"
-        f"    CORALLINE_CODEX_BIN={codex_q} {wrapper_q} \"$@\"\n"
+        f"    CORALLINE_CODEX_BIN={codex_q} {wrapper_q} run \"$@\"\n"
         "  fi\n"
         "}\n"
         f"{END}\n"

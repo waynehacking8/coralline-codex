@@ -1,6 +1,6 @@
 # Quality gates
 
-Version 0.2 targets a shareable 9/10 standard in each area below. A 10/10 score
+Version 0.4 targets a shareable 9/10 standard in each area below. A 10/10 score
 is intentionally reserved for long-term field data across many real terminals
 and future Codex releases.
 
@@ -11,6 +11,7 @@ and future Codex releases.
 | Subagent tracking | 9/10 | Official parent/thread fields, spawn identity/task, model/reasoning, per-agent context, nested overflow, completion collapse |
 | Projection honesty | 9/10 | Five-minute minimum baseline, warming/idle/reset-safe/tracking states, deterministic synthetic rates |
 | Responsive rendering | 9/10 | Nine themes, four styles, paths with spaces, 30-column critical-value preservation, dynamic one-to-five-row tmux status |
+| Native terminal UX | 9/10 | Explicit inline mode preserves terminal scrollback/input; manual representative-terminal checks before release |
 | Onboarding | 9/10 | Visual wizard, strict validation, previews, managed shell hook, explicit bypass |
 | Update safety | 9/10 | Byte-identical runtime backup, user config preservation, release highlights, idempotent hooks |
 | Uninstall safety | 9/10 | Scoped removal, recoverable backups, unrelated profile/config preservation |

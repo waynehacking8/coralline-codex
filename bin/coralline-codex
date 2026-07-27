@@ -17,6 +17,8 @@ CODEX_BIN=${CORALLINE_CODEX_BIN:-$(command -v codex || true)}
 CORALLINE_CLEANUP_SOCKET=
 CORALLINE_CLEANUP_TEMP=
 CORALLINE_CLEANUP_USAGE_PID=
+MIN_CODEX_VERSION=0.145.0
+DEFAULT_NATIVE_FIELDS='model-with-reasoning run-state context-remaining five-hour-limit weekly-limit used-tokens git-branch branch-changes fast-mode task-progress'
 
 cleanup_companion() {
   if [ -n "$CORALLINE_CLEANUP_USAGE_PID" ]; then
@@ -36,7 +38,7 @@ usage() {
 usage: coralline-codex [command] [arguments]
 
 Commands:
-  run [CODEX_ARGS...]   launch Codex with the native footer and companion bar
+  run [CODEX_ARGS...]   launch Codex with the full companion bar
   render [ARGS...]      render the companion once
   usage                 refresh and show plan limits and account token activity
   shell ACTION [ARGS]   install, remove, or inspect the optional codex shell hook
@@ -46,9 +48,61 @@ Commands:
   update                update from the GitHub repository
   uninstall             remove the port, retaining recoverable backups
 
-With no command, arguments are passed to an interactive Codex run.
-Use --no-companion before Codex arguments to keep only the themed native footer.
+With no command, interactive Bash launches use the full tmux companion bar.
+Use --no-companion before Codex arguments for native inline terminal behavior.
+--full-companion remains an explicit alias for the default companion mode.
 EOF
+}
+
+require_codex_version() {
+  local output found major minor patch
+  output=$("$CODEX_BIN" --version 2>/dev/null) ||
+    { printf 'coralline-codex: failed to run Codex: %s\n' "$CODEX_BIN" >&2; return 1; }
+  if [[ $output =~ ([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+    found=${BASH_REMATCH[0]}; major=${BASH_REMATCH[1]}; minor=${BASH_REMATCH[2]}; patch=${BASH_REMATCH[3]}
+  else
+    printf 'coralline-codex: could not parse Codex version: %s\n' "$output" >&2
+    return 1
+  fi
+  if ((major == 0 && (minor < 145 || (minor == 145 && patch < 0)))); then
+    printf 'coralline-codex: Codex %s or newer is required (found %s)\n' "$MIN_CODEX_VERSION" "$found" >&2
+    return 1
+  fi
+}
+
+codex_is_interactive() {
+  local argument expect_value=0 interactive_command=0
+  for argument in "$@"; do
+    if ((expect_value)); then expect_value=0; continue; fi
+    if ((interactive_command)); then
+      case $argument in -h | --help | -V | --version) return 1 ;; esac
+      continue
+    fi
+    case $argument in
+      --) return 0 ;;
+      -i | --image) return 0 ;;
+      -c | --config | --enable | --disable | --remote | --remote-auth-token-env | -m | --model | --local-provider | -p | --profile | -s | --sandbox | -C | --cd | --add-dir | -a | --ask-for-approval)
+        expect_value=1 ;;
+      --config=* | --enable=* | --disable=* | --remote=* | --remote-auth-token-env=* | --model=* | --local-provider=* | --profile=* | --sandbox=* | --cd=* | --add-dir=* | --ask-for-approval=*) ;;
+      -h | --help | -V | --version) return 1 ;;
+      --strict-config | --oss | --dangerously-bypass-approvals-and-sandbox | --dangerously-bypass-hook-trust | --search | --no-alt-screen) ;;
+      -*) ;;
+      resume | fork) interactive_command=1 ;;
+      exec | e | review | login | logout | mcp | plugin | mcp-server | app-server | remote-control | completion | update | doctor | sandbox | debug | apply | a | archive | delete | unarchive | cloud | exec-server | features | help)
+        return 1 ;;
+      *) return 0 ;;
+    esac
+  done
+  return 0
+}
+
+codex_has_no_alt_screen() {
+  local argument
+  for argument in "$@"; do
+    [ "$argument" = -- ] && return 1
+    [ "$argument" = --no-alt-screen ] && return 0
+  done
+  return 1
 }
 
 native_args() {
@@ -58,7 +112,7 @@ native_args() {
   # shellcheck disable=SC1090
   [ -f "$CONFIG" ] && . "$CONFIG"
   native=${CC_NATIVE_STATUS:-on}; theme=${CC_THEME:-claude-coral}
-  fields=${CC_NATIVE_FIELDS:-model-with-reasoning context-remaining five-hour-limit weekly-limit used-tokens}
+  fields=${CC_NATIVE_FIELDS:-$DEFAULT_NATIVE_FIELDS}
   if [ "$native" = on ]; then
     if [ "$fields" != inherit ]; then
       toml='['; separator=
@@ -83,19 +137,30 @@ native_args() {
 
 run_codex() {
   [ -n "$CODEX_BIN" ] || { printf 'coralline-codex: codex is not installed or not on PATH\n' >&2; return 127; }
-  local companion=1
-  if [ "${1:-}" = --no-companion ]; then companion=0; shift; fi
+  require_codex_version
+  local companion=1 interactive=0
   case ${1:-} in
-    exec | e | review | doctor | mcp | mcp-server | plugin | login | logout | completion | update | features | help | apply | sandbox | app-server | exec-server)
-      companion=0 ;;
+    --full-companion) companion=1; shift ;;
+    --no-companion) companion=0; shift ;;
   esac
+  codex_is_interactive "$@" && interactive=1
+  ((interactive)) || companion=0
+  if ((companion)) && { [ ! -t 0 ] || [ ! -t 1 ]; }; then companion=0; fi
+  if ((companion)) && ! command -v tmux >/dev/null 2>&1; then
+    printf 'coralline-codex: --full-companion requires tmux\n' >&2
+    return 127
+  fi
   native_args
-  local -a codex_command=("$CODEX_BIN" "${NATIVE_ARGS[@]}" "$@")
-  if ((companion == 0)) || [ ! -t 0 ] || [ ! -t 1 ] || ! command -v tmux >/dev/null 2>&1; then
+  local -a codex_command=("$CODEX_BIN" "${NATIVE_ARGS[@]}")
+  if ((interactive && companion == 0)) && ! codex_has_no_alt_screen "$@"; then
+    codex_command+=(--no-alt-screen)
+  fi
+  codex_command+=("$@")
+  if ((companion == 0)); then
     exec "${codex_command[@]}"
   fi
 
-  local temp socket session launch row_script start effective bg rate_cache session_cache agent_cache pane_pid usage_refresh agents_enabled agent_rows row
+  local temp socket session launch row_script start effective bg rate_cache session_cache agent_cache pane_pid usage_refresh agents_enabled agent_rows row copy_table
   local -a watcher_agent_args=()
   temp=$(mktemp -d "${TMPDIR:-/tmp}/coralline-codex.XXXXXX")
   socket=coralline-$$
@@ -174,6 +239,11 @@ run_codex() {
   fi
   printf '1' > "$temp/status-rows"
   TMUX='' tmux -L "$socket" set-option -g mouse on >/dev/null 2>&1 || true
+  TMUX='' tmux -L "$socket" set-option -s set-clipboard external >/dev/null 2>&1 || true
+  for copy_table in copy-mode copy-mode-vi; do
+    TMUX='' tmux -L "$socket" bind-key -T "$copy_table" MouseDragEnd1Pane send-keys -X stop-selection >/dev/null 2>&1 || true
+    TMUX='' tmux -L "$socket" bind-key -T "$copy_table" MouseDown3Pane send-keys -X copy-selection-and-cancel >/dev/null 2>&1 || true
+  done
   TMUX='' tmux -L "$socket" set-option -g status on
   TMUX='' tmux -L "$socket" set-option -g status-position bottom
   TMUX='' tmux -L "$socket" set-option -g status-interval 1

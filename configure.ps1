@@ -23,7 +23,7 @@ $Config = if (Test-Path -LiteralPath $ConfigPath) {
 } else {
     [pscustomobject]@{
         version = 1; theme = 'claude-coral'; nativeStatus = $true; codexBin = ''
-        nativeFields = @('model-with-reasoning', 'run-state', 'context-remaining', 'five-hour-limit', 'weekly-limit', 'used-tokens', 'fast-mode', 'task-progress')
+        nativeFields = @('model-with-reasoning', 'run-state', 'context-remaining', 'five-hour-limit', 'weekly-limit', 'used-tokens', 'git-branch', 'branch-changes', 'fast-mode', 'task-progress')
     }
 }
 

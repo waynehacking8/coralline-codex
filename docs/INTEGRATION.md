@@ -9,8 +9,10 @@ Coralline Codex uses two supported Codex surfaces and one local companion:
 - Custom `.tmTheme` files under `$CODEX_HOME/themes` color the native footer.
 - The authenticated app-server provides `account/rateLimits/read` and, when
   available, `account/usage/read` for exact account snapshots.
-- On Bash companion platforms, a private tmux server renders additional local
-  fields without altering the user's tmux server or configuration.
+- Default Bash launches use a private tmux server for additional local fields
+  without altering the user's tmux server or configuration.
+- Explicit `--no-companion` launches use Codex's supported `--no-alt-screen`
+  inline renderer, preserving the terminal's own scrollback and input behavior.
 - Local Codex rollout metadata provides authoritative subagent parentage,
   identity, model/reasoning, task lifecycle, token usage, and context window.
 
@@ -43,7 +45,8 @@ These values are CLI overrides. The installers never rewrite Codex's
 
 ## Bash companion lifecycle
 
-On Linux, macOS, WSL, and compatible Git Bash environments, the wrapper creates
+On Linux, macOS, WSL, and compatible Git Bash environments,
+the default interactive launch creates
 a private tmux server with `tmux -L coralline-<pid> -f /dev/null`. Its status
 command runs `lib/render.sh` once per second. Arguments remain a Bash array and
 the mode-0700 temporary launcher uses `%q`; no user argument is evaluated as
@@ -76,7 +79,7 @@ to the current-user PowerShell profile defining `codex` and
 `coralline-codex` functions. The original profile is backed up before a change.
 
 Native Windows applies the Codex footer/theme overrides and supports exact
-`coralline-codex usage`. It intentionally does not claim the separate tmux
+`coralline-codex usage`. It uses inline mode and intentionally does not claim the separate tmux
 companion. WSL is the supported full-companion Windows tier.
 
 ## Availability and graceful degradation
