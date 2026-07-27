@@ -143,17 +143,20 @@ EOF
     timeout 12 script -qfec "$dynamic_command" /dev/null >"$dynamic_root/launch.log" 2>&1 &
   dynamic_pid=$!
   dynamic_status=
+  dynamic_mouse=
   for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
     socket_path=$(find "$dynamic_sockets" -type s -name 'coralline-*' -print 2>/dev/null | sed -n '1p')
     if [ -n "$socket_path" ]; then
       dynamic_status=$(TMUX='' tmux -S "$socket_path" show-option -gv status 2>/dev/null || true)
+      dynamic_mouse=$(TMUX='' tmux -S "$socket_path" show-option -gv mouse 2>/dev/null || true)
       [ "$dynamic_status" = 2 ] && break
     fi
     sleep 0.5
   done
   wait "$dynamic_pid" >/dev/null 2>&1 || true
   [ "$dynamic_status" = 2 ] || fail "active agent did not expand tmux status to two rows: ${dynamic_status:-missing}"
-  pass 'tmux status expands for active agents and remains isolated'
+  [ "$dynamic_mouse" = on ] || fail "private tmux server did not enable mouse scrolling: ${dynamic_mouse:-missing}"
+  pass 'tmux status expands for active agents, enables scrolling, and remains isolated'
 fi
 
 while IFS=$'\t' read -r theme _; do

@@ -173,6 +173,7 @@ run_codex() {
     CORALLINE_CLEANUP_USAGE_PID=$!
   fi
   printf '1' > "$temp/status-rows"
+  TMUX='' tmux -L "$socket" set-option -g mouse on >/dev/null 2>&1 || true
   TMUX='' tmux -L "$socket" set-option -g status on
   TMUX='' tmux -L "$socket" set-option -g status-position bottom
   TMUX='' tmux -L "$socket" set-option -g status-interval 1

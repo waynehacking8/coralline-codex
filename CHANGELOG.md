@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.3 - 2026-07-27
+
+- Enable mouse handling on the private tmux server so the terminal scroll wheel
+  can enter copy mode and reach conversation history while the companion bar is
+  active.
+- Add live tmux regression coverage for mouse scrolling alongside dynamic agent
+  status rows.
+
 ## 0.3.2 - 2026-07-23
 
 - Reflect in-session `/model` switches in the companion bar within seconds by
