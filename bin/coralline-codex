@@ -226,7 +226,7 @@ run_codex() {
   TMUX='' tmux -L "$socket" -f /dev/null new-session -d -s "$session" -c "$PWD" "$launch"
   CORALLINE_CLEANUP_SOCKET_PATH=$(TMUX='' tmux -L "$socket" display-message -p -t "$session" '#{socket_path}' 2>/dev/null || true)
   TMUX='' tmux -L "$socket" set-hook -g client-attached \
-    'set-option destroy-unattached on'
+    'set-option -t codex destroy-unattached on'
   pane_pid=$(TMUX='' tmux -L "$socket" display-message -p -t "$session" '#{pane_pid}' 2>/dev/null || printf 0)
   usage_refresh=${CC_USAGE_REFRESH:-60}
   agents_enabled=${CC_AGENTS:-on}

@@ -284,6 +284,9 @@ def clients():
     except subprocess.TimeoutExpired: return []
     return result.stdout.splitlines() if result.returncode == 0 else []
 
+def destroys_unattached():
+    return tmux("show-options", "-v", "-t", "codex", "destroy-unattached").stdout.strip() == "on"
+
 def wait_for(predicate, label):
     for _ in range(160):
         drain()
@@ -295,7 +298,8 @@ try:
     first = pty_run([str(launcher)])
     socket_path = socket_dir / f"tmux-{os.getuid()}" / f"coralline-{first.pid}"
     wait_for(lambda: socket_path.exists() and first.poll() is None, "the first client")
-    wait_for(lambda: len(clients()) == 1 and first.poll() is None, "one client")
+    wait_for(lambda: len(clients()) == 1 and destroys_unattached() and first.poll() is None,
+             "one client with detached cleanup enabled")
     initial = clients()
     second = pty_run(["tmux", "-S", str(socket_path), "attach-session", "-t", "codex"])
     wait_for(lambda: len(clients()) == 2 and first.poll() is None and second.poll() is None, "two clients")
