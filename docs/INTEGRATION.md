@@ -50,10 +50,11 @@ the default interactive launch creates
 a private tmux server with `tmux -L coralline-<pid> -f /dev/null`. Its status
 command runs `lib/render.sh` once per second. Arguments remain a Bash array and
 the mode-0700 temporary launcher uses `%q`; no user argument is evaluated as
-shell source. After server creation, a global `client-detached` hook evaluates
-the remaining session attachment count and runs `kill-server` only when no
-clients remain. EXIT/HUP/INT/TERM traps retain idempotent fallback cleanup for
-the watcher, private server, and temporary directory.
+shell source. After the first client attaches, a global `client-attached` hook
+enables tmux's native `destroy-unattached` session option, so the session is
+destroyed only after its final client detaches. EXIT/HUP/INT/TERM traps retain
+idempotent fallback cleanup for the watcher, private server, and temporary
+directory.
 
 The live lifecycle regression runs on POSIX Linux and macOS with Python 3
 PTYs: it attaches two exact clients, verifies the private server remains after
