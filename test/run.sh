@@ -234,6 +234,94 @@ EOF
   pass 'all Codex 0.145 non-interactive commands bypass the companion'
 fi
 
+if ((WINDOWS_SHELL == 0)) && { [ "$(uname -s)" = Linux ] || [ "$(uname -s)" = Darwin ]; } &&
+  command -v tmux >/dev/null 2>&1; then
+  python3 - "$ROOT/bin/coralline-codex" "$TEST_ROOT" <<'PY'
+import os
+import pty
+import shutil
+import select
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+launcher, test_root = Path(sys.argv[1]), Path(sys.argv[2])
+codex_home, socket_dir = test_root / "lifecycle-home", Path(tempfile.mkdtemp(prefix="cc-", dir="/tmp"))
+fake_codex = test_root / "lifecycle-codex.py"
+codex_home.mkdir()
+fake_codex.write_text(
+    '#!/usr/bin/env python3\nimport sys,time\n'
+    'if "--version" in sys.argv: print("codex-cli 0.145.0", flush=True); raise SystemExit\n'
+    'while True: time.sleep(1)\n', encoding="utf-8")
+fake_codex.chmod(0o700)
+env = {**os.environ, "CODEX_HOME": str(codex_home), "CORALLINE_CODEX_BIN": str(fake_codex),
+       "CORALLINE_CODEX_CONFIG": "/dev/null", "TMUX": "", "TMUX_TMPDIR": str(socket_dir),
+       "TERM": "xterm-256color"}
+procs, fds, socket_path = [], [], None
+
+def pty_run(command):
+    master, slave = pty.openpty()
+    process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave,
+                               env=env, start_new_session=True)
+    os.close(slave)
+    procs.append(process); fds.append(master)
+    return process
+
+def drain():
+    for fd in fds:
+        try:
+            if select.select([fd], [], [], 0)[0]: os.read(fd, 65536)
+        except (OSError, ValueError): pass
+
+def tmux(*args):
+    return subprocess.run(["tmux", "-S", str(socket_path), *args], env=env,
+                          capture_output=True, text=True, timeout=1)
+
+def clients():
+    try: result = tmux("list-clients", "-F", "#{client_name}")
+    except subprocess.TimeoutExpired: return []
+    return result.stdout.splitlines() if result.returncode == 0 else []
+
+def wait_for(predicate, label):
+    for _ in range(160):
+        drain()
+        if predicate(): return
+        time.sleep(.05)
+    raise RuntimeError(f"timed out waiting for {label}")
+
+try:
+    first = pty_run([str(launcher)])
+    socket_path = socket_dir / f"tmux-{os.getuid()}" / f"coralline-{first.pid}"
+    wait_for(lambda: socket_path.exists() and first.poll() is None, "the first client")
+    wait_for(lambda: len(clients()) == 1 and first.poll() is None, "one client")
+    initial = clients()
+    second = pty_run(["tmux", "-S", str(socket_path), "attach-session", "-t", "codex"])
+    wait_for(lambda: len(clients()) == 2 and first.poll() is None and second.poll() is None, "two clients")
+    second_client = next(name for name in clients() if name not in initial)
+    if tmux("detach-client", "-t", second_client).returncode: raise RuntimeError("second detach failed")
+    wait_for(lambda: socket_path.exists() and len(clients()) == 1 and first.poll() is None and second.poll() is not None,
+             "one client to keep the server")
+    if tmux("detach-client", "-t", clients()[0]).returncode: raise RuntimeError("final detach failed")
+    wait_for(lambda: not socket_path.exists() and first.poll() is not None, "server and launcher exit")
+finally:
+    if socket_path is not None and socket_path.exists():
+        subprocess.run(["tmux", "-S", str(socket_path), "kill-server"], env=env,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for process in procs:
+        if process.poll() is None:
+            process.terminate()
+            try: process.wait(timeout=2)
+            except subprocess.TimeoutExpired: process.kill(); process.wait()
+    for fd in fds:
+        try: os.close(fd)
+        except OSError: pass
+    shutil.rmtree(socket_dir, ignore_errors=True)
+PY
+  pass 'private tmux server exits after the final client detaches'
+fi
+
 while IFS=$'\t' read -r theme _; do
   [[ $theme == \#* || -z $theme ]] && continue
   output=$(CC_THEME=$theme CC_ASCII=on CORALLINE_CODEX_CONFIG=/dev/null \
@@ -560,10 +648,11 @@ EOF
 python3 "$ROOT/lib/usage.py" watch --codex-bin "$fake_codex" --codex-home "$watch_home" \
   --rate-cache "$watched_rate" --session-cache "$watched_session" \
   --agent-cache "$watched_agents" --agent-rows 3 \
-  --start-epoch 0 --cwd "$watch_cwd" --pid $$ --interval 30 &
+  --start-epoch 0 --cwd "$watch_cwd" --pid $$ --interval 1 &
 watcher_pid=$!
-for _ in 1 2 3 4 5 6; do
-  if [ -f "$watched_session" ] && [ -f "$watched_agents" ] && \
+for _ in {1..20}; do
+  if [ -f "$watched_rate" ] && [ -f "$watched_session" ] && [ -f "$watched_agents" ] && \
+    grep -q 'CORALLINE_LIMIT1_REMAINING=66' "$watched_rate" && \
     grep -q 'CORALLINE_SESSION_AVAILABLE=1' "$watched_session" && \
     grep -q 'CORALLINE_AGENT_COUNT=1' "$watched_agents"; then break; fi
   sleep 0.5

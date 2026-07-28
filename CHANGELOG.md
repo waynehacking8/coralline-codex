@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 - 2026-07-28
+
+- Prevent orphan private tmux/Codex sessions after the final client disconnects.
+  This reduces Coralline-created amplification of shared Codex SQLite
+  contention; legitimate upstream multi-session contention remains out of
+  scope.
+
 ## 0.4.0 - 2026-07-27
 
 - Keep the complete tmux companion, including clock, burn, runtime, and agent
